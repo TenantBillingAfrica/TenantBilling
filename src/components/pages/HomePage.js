@@ -17,6 +17,14 @@ const FEATURES = [
   { icon: ClipboardList, keyTitle: 'feature_statements', keyDesc: 'feature_statements_desc', gradient: 'from-rose-400 to-pink-500' },
 ];
 
+const S3_BASE = 'https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images';
+
+const HERO_IMAGES = [
+  { src: `${S3_BASE}/happy-tenants-handshake.jpg`, alt: 'Happy tenants signing lease' },
+  { src: `${S3_BASE}/happy-family-moving.jpg`, alt: 'Happy family moving into new home' },
+  { src: `${S3_BASE}/happy-couple-newHome.webp`, alt: 'Happy couple in their new home' },
+];
+
 const STATS = [
   { value: '12', label: 'African countries', icon: Globe },
   { value: '500+', label: 'Happy landlords', icon: Home },
@@ -69,7 +77,7 @@ const HomePage = () => {
             {t('hero_subtitle')}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
             <button
               onClick={() => navigate('/register')}
               className="flex items-center gap-2 px-8 py-3.5 bg-sunshine-400 text-navy-800 font-bold text-sm rounded-full hover:bg-sunshine-500 hover:shadow-xl hover:shadow-sunshine-400/20 transition-all border-none cursor-pointer"
@@ -82,6 +90,27 @@ const HomePage = () => {
             >
               {t('hero_login')}
             </button>
+          </div>
+
+          {/* Hero image collage */}
+          <div className="relative max-w-3xl mx-auto">
+            <div className="grid grid-cols-3 gap-4">
+              {HERO_IMAGES.map((img, i) => (
+                <div
+                  key={i}
+                  className="relative overflow-hidden rounded-2xl shadow-2xl shadow-black/30"
+                  style={{ transform: i === 1 ? 'translateY(-12px)' : 'translateY(0)' }}
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/40 to-transparent z-10" />
+                  <img
+                    src={img.src}
+                    alt={img.alt}
+                    className="w-full h-48 object-cover"
+                    loading="eager"
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -113,8 +142,71 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Features */}
+      {/* Happy Tenants showcase */}
       <section className="py-20 bg-white">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Image grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
+                  <img
+                    src={`${S3_BASE}/happy-family-moving.jpg`}
+                    alt="Happy family moving in"
+                    className="w-full h-64 object-cover hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+                <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
+                  <img
+                    src={`${S3_BASE}/happy-tenants-handshake.jpg`}
+                    alt="Tenants signing lease"
+                    className="w-full h-40 object-cover hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+              </div>
+              <div className="pt-8">
+                <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
+                  <img
+                    src={`${S3_BASE}/happy-couple-newHome.webp`}
+                    alt="Happy couple in new home"
+                    className="w-full h-72 object-cover hover:scale-105 transition-transform duration-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Text content */}
+            <div>
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-sunshine-100 text-sunshine-700 rounded-full text-sm font-semibold mb-4">
+                <Heart size={14} />
+                {t('happy_tenants_badge') || 'Happy Tenants'}
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-navy-800 tracking-tight mb-4">
+                {t('happy_tenants_title') || 'Building happier communities across Africa'}
+              </h2>
+              <p className="text-gray-500 leading-relaxed mb-6">
+                {t('happy_tenants_desc') || 'When billing is transparent and communication is seamless, tenants thrive. Our platform helps landlords build trust, reduce disputes, and create homes people love.'}
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                {[
+                  { value: '95%', label: t('happy_stat_satisfaction') || 'Tenant satisfaction' },
+                  { value: '60%', label: t('happy_stat_disputes') || 'Fewer billing disputes' },
+                  { value: '3x', label: t('happy_stat_faster') || 'Faster rent collection' },
+                  { value: '24/7', label: t('happy_stat_support') || 'WhatsApp support' },
+                ].map((s, i) => (
+                  <div key={i} className="p-4 bg-lavender-50 rounded-2xl">
+                    <p className="text-2xl font-extrabold text-navy-800">{s.value}</p>
+                    <p className="text-xs text-gray-500 mt-1">{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="py-20 bg-warm-50">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-lavender-100 text-navy-700 rounded-full text-sm font-semibold mb-4">

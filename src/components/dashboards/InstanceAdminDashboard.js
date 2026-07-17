@@ -30,12 +30,12 @@ const MOCK_INVOICES = [
 ];
 
 const TABS = [
-  { key: 'buildings', label: 'instance_buildings', icon: Building2 },
-  { key: 'tenants', label: 'instance_tenants', icon: Users },
-  { key: 'staff', label: 'instance_staff', icon: UserPlus },
-  { key: 'meters', label: 'instance_meters', icon: Droplets },
-  { key: 'billing', label: 'instance_billing', icon: FileText },
-  { key: 'payments', label: 'instance_payments', icon: CreditCard },
+  { key: 'buildings', label: 'instance_buildings', icon: Building2, gradient: 'from-emerald-400 to-teal-500' },
+  { key: 'tenants', label: 'instance_tenants', icon: Users, gradient: 'from-purple-500 to-indigo-600' },
+  { key: 'staff', label: 'instance_staff', icon: UserPlus, gradient: 'from-amber-400 to-orange-500' },
+  { key: 'meters', label: 'instance_meters', icon: Droplets, gradient: 'from-cyan-400 to-blue-500' },
+  { key: 'billing', label: 'instance_billing', icon: FileText, gradient: 'from-rose-400 to-pink-500' },
+  { key: 'payments', label: 'instance_payments', icon: CreditCard, gradient: 'from-green-400 to-emerald-500' },
 ];
 
 const InstanceAdminDashboard = () => {
@@ -56,11 +56,12 @@ const InstanceAdminDashboard = () => {
   return (
     <div className="flex h-full">
       {/* Sidebar */}
-      <div className="w-56 bg-navy-800 text-white flex-shrink-0 flex flex-col">
-        <div className="px-4 py-4 border-b border-navy-700">
-          <p className="text-xs font-mono uppercase tracking-widest text-white/50">{user?.instanceName || 'Instance'}</p>
+      <div className="w-60 bg-gradient-to-b from-navy-800 to-navy-900 text-white flex-shrink-0 flex flex-col">
+        <div className="px-5 py-5">
+          <p className="text-xs uppercase tracking-widest text-white/40 mb-1">Dashboard</p>
+          <p className="text-sm font-bold text-white truncate">{user?.instanceName || 'Instance'}</p>
         </div>
-        <nav className="flex-1 py-2">
+        <nav className="flex-1 px-3 py-2 space-y-1">
           {TABS.map(tab => {
             const Icon = tab.icon;
             const isActive = tab.key === activeTab;
@@ -68,70 +69,98 @@ const InstanceAdminDashboard = () => {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-xs font-mono uppercase tracking-wider border-none cursor-pointer transition-colors ${
-                  isActive ? 'bg-navy-700 text-white' : 'bg-transparent text-white/50 hover:text-white hover:bg-navy-700'
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm font-medium rounded-xl border-none cursor-pointer transition-all duration-200 ${
+                  isActive
+                    ? 'bg-white/15 text-white shadow-lg shadow-black/10'
+                    : 'bg-transparent text-white/50 hover:text-white hover:bg-white/10'
                 }`}
               >
-                <Icon size={14} />
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  isActive
+                    ? `bg-gradient-to-br ${tab.gradient}`
+                    : 'bg-white/10'
+                }`}>
+                  <Icon size={15} className="text-white" />
+                </div>
                 {t(tab.label)}
               </button>
             );
           })}
         </nav>
+        {/* Sidebar footer */}
+        <div className="px-5 py-4 border-t border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-sunshine-400 to-orange-500 flex items-center justify-center text-xs font-bold text-navy-900">
+              {(user?.name || 'A').charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{user?.name || 'Admin'}</p>
+              <p className="text-xs text-white/40 truncate">{user?.email || 'admin@instance.com'}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main */}
-      <div className="flex-1 overflow-y-auto p-6 bg-warm-50">
-        {/* Search bar */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-bold text-navy-800">{t(`instance_${activeTab}`)}</h2>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center border border-gray-300 bg-white px-3">
-              <Search size={14} className="text-white/50" />
+      <div className="flex-1 overflow-y-auto p-8 bg-lavender-50">
+        {/* Header bar */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h2 className="text-2xl font-extrabold text-navy-800 tracking-tight">{t(`instance_${activeTab}`)}</h2>
+            <p className="text-sm text-gray-400 mt-1">Manage your {activeTab} from one place</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center bg-white rounded-xl shadow-sm shadow-purple-100/20 px-4 py-2.5 border border-purple-100/40 focus-within:ring-2 focus-within:ring-purple-300 focus-within:border-purple-300 transition-all">
+              <Search size={16} className="text-gray-400 flex-shrink-0" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('search')}
-                className="px-2 py-2 text-sm font-mono border-none outline-none bg-transparent"
+                className="px-3 py-0 text-sm border-none outline-none bg-transparent text-navy-800 placeholder-gray-400 w-48"
               />
             </div>
-            <button className="flex items-center gap-2 px-4 py-2 bg-navy-800 text-white text-xs font-bold uppercase tracking-wider border-none cursor-pointer hover:bg-navy-700">
-              <Plus size={14} /> {t('create')}
+            <button className="flex items-center gap-2 px-6 py-2.5 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all">
+              <Plus size={16} /> {t('create')}
             </button>
           </div>
         </div>
 
         {/* Buildings tab */}
         {activeTab === 'buildings' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {MOCK_BUILDINGS.map(bld => (
-              <div key={bld.id} className="bg-white border border-gray-200 p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-bold text-navy-800">{bld.name}</h3>
+              <div key={bld.id} className="bg-white rounded-2xl p-6 shadow-sm shadow-purple-100/20 border border-purple-100/30 hover:shadow-xl hover:shadow-purple-100/30 hover:-translate-y-0.5 transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                      <Building2 size={18} className="text-white" />
+                    </div>
+                    <h3 className="text-base font-bold text-navy-800">{bld.name}</h3>
+                  </div>
                   <div className="flex items-center gap-1">
-                    <button className="p-1 text-white/50 hover:text-navy-800 bg-transparent border-none cursor-pointer"><Edit size={14} /></button>
-                    <button className="p-1 text-white/50 hover:text-red-600 bg-transparent border-none cursor-pointer"><Trash2 size={14} /></button>
+                    <button className="p-2 text-gray-400 hover:text-navy-800 hover:bg-lavender-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Edit size={15} /></button>
+                    <button className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Trash2 size={15} /></button>
                   </div>
                 </div>
-                <p className="text-xs text-gray-400 font-mono mb-4">{bld.address}</p>
-                <div className="grid grid-cols-3 gap-0">
-                  <div className="border border-gray-100 p-2 text-center">
-                    <p className="text-lg font-extrabold text-navy-800">{bld.units}</p>
-                    <p className="text-xs font-mono text-white/50">Units</p>
+                <p className="text-sm text-gray-400 mb-5">{bld.address}</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-lavender-50 rounded-xl p-3 text-center">
+                    <p className="text-xl font-extrabold text-navy-800">{bld.units}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Units</p>
                   </div>
-                  <div className="border border-gray-100 p-2 text-center">
-                    <p className="text-lg font-extrabold text-navy-800">{bld.occupancy}</p>
-                    <p className="text-xs font-mono text-white/50">Occupied</p>
+                  <div className="bg-lavender-50 rounded-xl p-3 text-center">
+                    <p className="text-xl font-extrabold text-navy-800">{bld.occupancy}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Occupied</p>
                   </div>
-                  <div className="border border-gray-100 p-2 text-center">
-                    <p className="text-lg font-extrabold text-navy-800">{Math.round((bld.occupancy / bld.units) * 100)}%</p>
-                    <p className="text-xs font-mono text-white/50">Rate</p>
+                  <div className="bg-lavender-50 rounded-xl p-3 text-center">
+                    <p className="text-xl font-extrabold text-navy-800">{Math.round((bld.occupancy / bld.units) * 100)}%</p>
+                    <p className="text-xs text-gray-500 mt-0.5">Rate</p>
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-3">
-                  {bld.mobileMoney && <span className="px-2 py-0.5 text-xs font-mono border border-gray-200 text-gray-500">M-Pesa</span>}
-                  {bld.cardPayment && <span className="px-2 py-0.5 text-xs font-mono border border-gray-200 text-gray-500">Card</span>}
+                <div className="mt-4 flex items-center gap-3">
+                  {bld.mobileMoney && <span className="px-3 py-1 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">M-Pesa</span>}
+                  {bld.cardPayment && <span className="px-3 py-1 text-xs font-semibold rounded-full bg-purple-50 text-purple-600 border border-purple-200">Card</span>}
                 </div>
               </div>
             ))}
@@ -140,37 +169,37 @@ const InstanceAdminDashboard = () => {
 
         {/* Tenants tab */}
         {activeTab === 'tenants' && (
-          <div className="bg-white border border-gray-200">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm shadow-purple-100/20 border border-purple-100/30">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
                   {['Name', 'Unit', 'Building', 'Rent', 'Service', 'Meter', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-white/50">{h}</th>
+                    <th key={h} className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/80">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {MOCK_TENANTS.map(tenant => (
-                  <tr key={tenant.id} className="border-b border-zinc-50 hover:bg-warm-50">
-                    <td className="px-4 py-3">
+                  <tr key={tenant.id} className="border-b border-gray-50 hover:bg-lavender-50/50 transition-colors">
+                    <td className="px-5 py-4">
                       <p className="text-sm font-semibold text-navy-800">{tenant.name}</p>
-                      <p className="text-xs font-mono text-white/50">{tenant.email}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{tenant.email}</p>
                     </td>
-                    <td className="px-4 py-3 text-sm font-mono text-navy-800 font-semibold">{tenant.unit}</td>
-                    <td className="px-4 py-3 text-sm text-gray-500">{tenant.building}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-navy-800">KES {tenant.rent.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm font-mono text-gray-500">KES {tenant.serviceCharge.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-xs font-mono text-gray-400">{tenant.meterNo}</td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 text-xs font-mono uppercase ${getStatusStyle(tenant.status)}`}>
+                    <td className="px-5 py-4 text-sm font-semibold text-navy-800">{tenant.unit}</td>
+                    <td className="px-5 py-4 text-sm text-gray-500">{tenant.building}</td>
+                    <td className="px-5 py-4 text-sm text-navy-800 font-medium">KES {tenant.rent.toLocaleString()}</td>
+                    <td className="px-5 py-4 text-sm text-gray-500">KES {tenant.serviceCharge.toLocaleString()}</td>
+                    <td className="px-5 py-4 text-xs text-gray-400">{tenant.meterNo}</td>
+                    <td className="px-5 py-4">
+                      <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize ${getStatusStyle(tenant.status)}`}>
                         {tenant.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-1">
-                        <button className="p-1 text-white/50 hover:text-navy-800 bg-transparent border-none cursor-pointer"><Eye size={14} /></button>
-                        <button className="p-1 text-white/50 hover:text-navy-800 bg-transparent border-none cursor-pointer"><Edit size={14} /></button>
-                        <button className="p-1 text-white/50 hover:text-red-600 bg-transparent border-none cursor-pointer"><Trash2 size={14} /></button>
+                        <button className="p-1.5 text-gray-400 hover:text-navy-800 hover:bg-lavender-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Eye size={15} /></button>
+                        <button className="p-1.5 text-gray-400 hover:text-navy-800 hover:bg-lavender-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Edit size={15} /></button>
+                        <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -182,30 +211,37 @@ const InstanceAdminDashboard = () => {
 
         {/* Staff tab */}
         {activeTab === 'staff' && (
-          <div className="bg-white border border-gray-200">
+          <div className="bg-white rounded-2xl overflow-hidden shadow-sm shadow-purple-100/20 border border-purple-100/30">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100">
                   {['Name', 'Email', 'WhatsApp', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-5 py-3 text-left text-xs font-mono uppercase tracking-wider text-white/50">{h}</th>
+                    <th key={h} className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/80">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {MOCK_STAFF.map(staff => (
-                  <tr key={staff.id} className="border-b border-zinc-50 hover:bg-warm-50">
-                    <td className="px-5 py-3 text-sm font-semibold text-navy-800">{staff.name}</td>
-                    <td className="px-5 py-3 text-sm font-mono text-gray-500">{staff.email}</td>
-                    <td className="px-5 py-3 text-sm font-mono text-gray-500">{staff.whatsapp}</td>
-                    <td className="px-5 py-3">
-                      <span className={`px-2 py-0.5 text-xs font-mono uppercase ${getStatusStyle(staff.status)}`}>
+                  <tr key={staff.id} className="border-b border-gray-50 hover:bg-lavender-50/50 transition-colors">
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xs font-bold text-white">
+                          {staff.name.charAt(0)}
+                        </div>
+                        <span className="text-sm font-semibold text-navy-800">{staff.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-gray-500">{staff.email}</td>
+                    <td className="px-5 py-4 text-sm text-gray-500">{staff.whatsapp}</td>
+                    <td className="px-5 py-4">
+                      <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize ${getStatusStyle(staff.status)}`}>
                         {staff.status}
                       </span>
                     </td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-4">
                       <div className="flex items-center gap-1">
-                        <button className="p-1 text-white/50 hover:text-navy-800 bg-transparent border-none cursor-pointer"><Edit size={14} /></button>
-                        <button className="p-1 text-white/50 hover:text-red-600 bg-transparent border-none cursor-pointer"><Trash2 size={14} /></button>
+                        <button className="p-1.5 text-gray-400 hover:text-navy-800 hover:bg-lavender-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Edit size={15} /></button>
+                        <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Trash2 size={15} /></button>
                       </div>
                     </td>
                   </tr>
@@ -217,24 +253,32 @@ const InstanceAdminDashboard = () => {
 
         {/* Meters tab */}
         {activeTab === 'meters' && (
-          <div className="bg-white border border-gray-200 p-6">
-            <p className="text-xs font-mono uppercase tracking-wider text-white/50 mb-4">Water Meter Readings — July 2026</p>
+          <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-100/30 p-7">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+                <Droplets size={18} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-navy-800">Water Meter Readings</h3>
+                <p className="text-xs text-gray-400">July 2026</p>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {MOCK_TENANTS.filter(t => t.status === 'active').map(tenant => (
-                <div key={tenant.id} className="border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-2">
+                <div key={tenant.id} className="bg-lavender-50 rounded-2xl p-5 border border-purple-100/40 hover:shadow-md hover:shadow-purple-100/20 transition-all">
+                  <div className="flex items-center justify-between mb-3">
                     <div>
                       <p className="text-sm font-semibold text-navy-800">{tenant.name}</p>
-                      <p className="text-xs font-mono text-white/50">Unit {tenant.unit} — Meter {tenant.meterNo}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Unit {tenant.unit} &middot; Meter {tenant.meterNo}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <input
                       type="number"
                       placeholder="Current reading"
-                      className="flex-1 px-3 py-2 border border-gray-300 text-sm font-mono bg-transparent focus:outline-none focus:border-zinc-600"
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-purple-200/60 text-sm bg-white text-navy-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-purple-300 transition-all"
                     />
-                    <button className="px-4 py-2 bg-navy-800 text-white text-xs font-bold uppercase border-none cursor-pointer hover:bg-navy-700">
+                    <button className="px-5 py-2.5 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all">
                       {t('save')}
                     </button>
                   </div>
@@ -247,36 +291,35 @@ const InstanceAdminDashboard = () => {
         {/* Billing tab */}
         {activeTab === 'billing' && (
           <>
-            <div className="flex items-center justify-between mb-4">
-              <div />
-              <button className="flex items-center gap-2 px-4 py-2 bg-navy-800 text-white text-xs font-bold uppercase tracking-wider border-none cursor-pointer hover:bg-navy-700">
-                <Send size={14} /> Generate & Send Invoices
+            <div className="flex items-center justify-end mb-6">
+              <button className="flex items-center gap-2 px-6 py-2.5 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all">
+                <Send size={16} /> Generate & Send Invoices
               </button>
             </div>
-            <div className="bg-white border border-gray-200">
+            <div className="bg-white rounded-2xl overflow-hidden shadow-sm shadow-purple-100/20 border border-purple-100/30">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-100">
                     {['Invoice', 'Tenant', 'Unit', 'Water (L)', 'Water Charge', 'Total', 'Status', 'Paid Date'].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-white/50">{h}</th>
+                      <th key={h} className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/80">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {MOCK_INVOICES.map(inv => (
-                    <tr key={inv.id} className="border-b border-zinc-50 hover:bg-warm-50">
-                      <td className="px-4 py-3 text-xs font-mono text-gray-400">{inv.id}</td>
-                      <td className="px-4 py-3 text-sm font-semibold text-navy-800">{inv.tenant}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-navy-800">{inv.unit}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-500">{inv.waterUsage}</td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-500">KES {inv.waterCharge.toLocaleString()}</td>
-                      <td className="px-4 py-3 text-sm font-mono font-semibold text-navy-800">KES {inv.amount.toLocaleString()}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-0.5 text-xs font-mono uppercase ${getStatusStyle(inv.status)}`}>
+                    <tr key={inv.id} className="border-b border-gray-50 hover:bg-lavender-50/50 transition-colors">
+                      <td className="px-5 py-4 text-xs text-gray-400">{inv.id}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-navy-800">{inv.tenant}</td>
+                      <td className="px-5 py-4 text-sm text-navy-800 font-medium">{inv.unit}</td>
+                      <td className="px-5 py-4 text-sm text-gray-500">{inv.waterUsage}</td>
+                      <td className="px-5 py-4 text-sm text-gray-500">KES {inv.waterCharge.toLocaleString()}</td>
+                      <td className="px-5 py-4 text-sm font-semibold text-navy-800">KES {inv.amount.toLocaleString()}</td>
+                      <td className="px-5 py-4">
+                        <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize ${getStatusStyle(inv.status)}`}>
                           {inv.status}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm font-mono text-gray-400">{inv.paidDate || '—'}</td>
+                      <td className="px-5 py-4 text-sm text-gray-400">{inv.paidDate || '---'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -287,17 +330,25 @@ const InstanceAdminDashboard = () => {
 
         {/* Payments tab */}
         {activeTab === 'payments' && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-0 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             {[
-              { label: 'Collected This Month', value: 'KES 29,500' },
-              { label: 'Outstanding', value: 'KES 57,000' },
-              { label: 'Collection Rate', value: '34%' },
-            ].map((s, i) => (
-              <div key={i} className="bg-white border border-gray-200 p-5">
-                <p className="text-xs font-mono uppercase tracking-wider text-white/50 mb-2">{s.label}</p>
-                <p className="text-2xl font-extrabold text-navy-800">{s.value}</p>
-              </div>
-            ))}
+              { label: 'Collected This Month', value: 'KES 29,500', gradient: 'from-emerald-400 to-teal-500', icon: CreditCard },
+              { label: 'Outstanding', value: 'KES 57,000', gradient: 'from-amber-400 to-orange-500', icon: FileText },
+              { label: 'Collection Rate', value: '34%', gradient: 'from-purple-500 to-indigo-600', icon: Building2 },
+            ].map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div key={i} className="bg-white rounded-2xl p-6 shadow-sm shadow-purple-100/20 border border-purple-100/30 hover:shadow-xl hover:shadow-purple-100/30 hover:-translate-y-0.5 transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm font-semibold text-gray-500">{s.label}</p>
+                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${s.gradient} flex items-center justify-center`}>
+                      <Icon size={18} className="text-white" />
+                    </div>
+                  </div>
+                  <p className="text-3xl font-extrabold text-navy-800">{s.value}</p>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
