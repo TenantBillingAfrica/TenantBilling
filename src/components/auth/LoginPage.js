@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const DEMO_ACCOUNTS = [
   { email: 'admin@tenantbilling.com', password: 'admin123', label: 'System Admin' },
-  { email: 'landlord@demo.com', password: 'demo123', label: 'Landlord (Instance Admin)' },
+  { email: 'landlord@demo.com', password: 'demo123', label: 'Landlord' },
   { email: 'meter@demo.com', password: 'demo123', label: 'Meter Reader' },
 ];
 
@@ -25,10 +25,8 @@ const LoginPage = () => {
     e.preventDefault();
     setError('');
     setIsSubmitting(true);
-
     const result = await login(email, password);
     setIsSubmitting(false);
-
     if (result.success) {
       navigate('/dashboard');
     } else {
@@ -43,24 +41,25 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fafafe] flex items-center justify-center px-4">
+    <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-4">
-            <img src="/logo.png" alt="Tenant Billing" style={{ height: 32 }} />
-            <span className="text-sm font-bold text-[#1e1b4b] tracking-tight">
+            <img src="/logo.png" alt="Tenant Billing" className="h-10" />
+            <span className="text-lg font-bold text-navy-800 tracking-tight">
               Tenant Billing
             </span>
           </div>
-          <h1 className="text-xl font-bold text-[#1e1b4b]">{t('login_title')}</h1>
+          <h1 className="text-2xl font-extrabold text-navy-800">{t('login_title')}</h1>
+          <p className="text-sm text-gray-500 mt-1">Welcome back! Sign in to your account.</p>
         </div>
 
         {/* Login form */}
-        <div className="bg-white border border-indigo-100 p-8">
+        <div className="bg-white rounded-2xl p-8 shadow-xl shadow-purple-100/30">
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-sm font-semibold text-navy-800 mb-1.5">
                 {t('login_email')}
               </label>
               <input
@@ -70,12 +69,12 @@ const LoginPage = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
                 placeholder="you@example.com"
-                className="w-full px-3 py-2.5 border border-indigo-200 text-sm text-[#1e1b4b] placeholder:text-indigo-300 bg-transparent focus:outline-none focus:border-[#4f46e5] transition-colors disabled:bg-indigo-50"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 placeholder:text-gray-400 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
               />
             </div>
 
             <div className="mb-6">
-              <label className="block text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1.5">
+              <label className="block text-sm font-semibold text-navy-800 mb-1.5">
                 {t('login_password')}
               </label>
               <div className="relative">
@@ -85,27 +84,29 @@ const LoginPage = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2.5 pr-10 border border-indigo-200 text-sm text-[#1e1b4b] placeholder:text-indigo-300 bg-transparent focus:outline-none focus:border-[#4f46e5] transition-colors disabled:bg-indigo-50"
+                  placeholder="Enter your password"
+                  className="w-full px-4 py-3 pr-11 rounded-xl border border-gray-200 text-sm text-navy-800 placeholder:text-gray-400 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-indigo-600 bg-transparent border-none cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-navy-800 bg-transparent border-none cursor-pointer"
                 >
-                  {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
             {error && (
-              <p className="text-xs text-red-500 mb-4">{error}</p>
+              <div className="mb-4 px-4 py-2.5 bg-red-50 rounded-xl">
+                <p className="text-xs text-red-600 font-medium">{error}</p>
+              </div>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 bg-[#4f46e5] text-white text-sm font-semibold hover:bg-[#4338ca] transition-colors disabled:opacity-50 border-none cursor-pointer"
+              className="w-full py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
             >
               {isSubmitting ? t('loading') : t('login_submit')}
             </button>
@@ -113,20 +114,22 @@ const LoginPage = () => {
         </div>
 
         {/* Demo accounts */}
-        <div className="mt-6 border border-indigo-100 bg-white p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-3">
+        <div className="mt-6 bg-white rounded-2xl p-5 shadow-sm">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
             Demo Accounts
           </p>
-          {DEMO_ACCOUNTS.map((acct) => (
-            <button
-              key={acct.email}
-              onClick={() => handleDemoFill(acct)}
-              className="w-full text-left px-3 py-2.5 mb-1 text-xs text-indigo-500 hover:bg-indigo-50 bg-transparent border border-indigo-50 cursor-pointer transition-colors"
-            >
-              <span className="font-semibold text-[#1e1b4b]">{acct.label}</span>
-              <span className="text-indigo-300 ml-2">{acct.email}</span>
-            </button>
-          ))}
+          <div className="flex flex-col gap-2">
+            {DEMO_ACCOUNTS.map((acct) => (
+              <button
+                key={acct.email}
+                onClick={() => handleDemoFill(acct)}
+                className="w-full text-left px-4 py-3 text-sm text-gray-600 hover:bg-lavender-50 bg-transparent rounded-xl border border-gray-100 cursor-pointer transition-colors"
+              >
+                <span className="font-semibold text-navy-800">{acct.label}</span>
+                <span className="text-gray-400 ml-2 text-xs">{acct.email}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
