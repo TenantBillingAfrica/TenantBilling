@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -43,24 +43,24 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
+    <div className="min-h-screen bg-[#fafafe] flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Building2 size={20} className="text-zinc-900" />
-            <span className="text-sm font-extrabold uppercase tracking-widest text-zinc-900">
+          <div className="flex items-center justify-center gap-2.5 mb-4">
+            <img src="/logo.png" alt="Tenant Billing" style={{ height: 32 }} />
+            <span className="text-sm font-bold text-[#1e1b4b] tracking-tight">
               Tenant Billing
             </span>
           </div>
-          <h1 className="text-xl font-bold text-zinc-900">{t('login_title')}</h1>
+          <h1 className="text-xl font-bold text-[#1e1b4b]">{t('login_title')}</h1>
         </div>
 
         {/* Login form */}
-        <div className="bg-white border border-zinc-200 p-8">
+        <div className="bg-white border border-indigo-100 p-8">
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label className="block text-xs font-mono font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1.5">
                 {t('login_email')}
               </label>
               <input
@@ -70,12 +70,12 @@ const LoginPage = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isSubmitting}
                 placeholder="you@example.com"
-                className="w-full px-3 py-2 border border-zinc-300 text-sm font-mono text-zinc-900 placeholder:text-zinc-400 bg-transparent focus:outline-none focus:border-zinc-600 transition-colors disabled:bg-zinc-100"
+                className="w-full px-3 py-2.5 border border-indigo-200 text-sm text-[#1e1b4b] placeholder:text-indigo-300 bg-transparent focus:outline-none focus:border-[#4f46e5] transition-colors disabled:bg-indigo-50"
               />
             </div>
 
             <div className="mb-6">
-              <label className="block text-xs font-mono font-semibold text-zinc-500 uppercase tracking-wider mb-1">
+              <label className="block text-xs font-semibold text-indigo-400 uppercase tracking-wider mb-1.5">
                 {t('login_password')}
               </label>
               <div className="relative">
@@ -86,12 +86,12 @@ const LoginPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isSubmitting}
                   placeholder="••••••••"
-                  className="w-full px-3 py-2 pr-10 border border-zinc-300 text-sm font-mono text-zinc-900 placeholder:text-zinc-400 bg-transparent focus:outline-none focus:border-zinc-600 transition-colors disabled:bg-zinc-100"
+                  className="w-full px-3 py-2.5 pr-10 border border-indigo-200 text-sm text-[#1e1b4b] placeholder:text-indigo-300 bg-transparent focus:outline-none focus:border-[#4f46e5] transition-colors disabled:bg-indigo-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 bg-transparent border-none cursor-pointer"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-indigo-600 bg-transparent border-none cursor-pointer"
                 >
                   {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
@@ -99,13 +99,13 @@ const LoginPage = () => {
             </div>
 
             {error && (
-              <p className="text-xs text-red-600 font-mono mb-4">{error}</p>
+              <p className="text-xs text-red-500 mb-4">{error}</p>
             )}
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 bg-zinc-900 text-white text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-colors disabled:opacity-50 border-none cursor-pointer"
+              className="w-full py-2.5 bg-[#4f46e5] text-white text-sm font-semibold hover:bg-[#4338ca] transition-colors disabled:opacity-50 border-none cursor-pointer"
             >
               {isSubmitting ? t('loading') : t('login_submit')}
             </button>
@@ -113,18 +113,18 @@ const LoginPage = () => {
         </div>
 
         {/* Demo accounts */}
-        <div className="mt-6 border border-zinc-200 bg-white p-4">
-          <p className="text-xs font-mono uppercase tracking-wider text-zinc-400 mb-3">
+        <div className="mt-6 border border-indigo-100 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-3">
             Demo Accounts
           </p>
           {DEMO_ACCOUNTS.map((acct) => (
             <button
               key={acct.email}
               onClick={() => handleDemoFill(acct)}
-              className="w-full text-left px-3 py-2 mb-1 text-xs font-mono text-zinc-600 hover:bg-zinc-50 bg-transparent border border-zinc-100 cursor-pointer transition-colors"
+              className="w-full text-left px-3 py-2.5 mb-1 text-xs text-indigo-500 hover:bg-indigo-50 bg-transparent border border-indigo-50 cursor-pointer transition-colors"
             >
-              <span className="font-semibold text-zinc-900">{acct.label}</span>
-              <span className="text-zinc-400 ml-2">{acct.email}</span>
+              <span className="font-semibold text-[#1e1b4b]">{acct.label}</span>
+              <span className="text-indigo-300 ml-2">{acct.email}</span>
             </button>
           ))}
         </div>

@@ -51,10 +51,17 @@ const translations = {
 
     // Pricing
     pricing_title: 'Simple, Transparent Pricing',
-    pricing_subtitle: 'KES 1,000 per tenant per month. No hidden fees.',
+    pricing_subtitle: 'One plan. Everything included. Save 25% with annual billing.',
+    pricing_monthly: 'Monthly',
+    pricing_annual: 'Annual',
+    pricing_monthly_price: '200',
+    pricing_annual_price: '150',
+    pricing_monthly_label: 'per tenant / month',
+    pricing_annual_label: 'per tenant / month, billed annually',
+    pricing_save: 'Save 25%',
     pricing_per_tenant: 'per tenant / month',
     pricing_cta: 'Start Free Trial',
-    pricing_includes: 'Includes',
+    pricing_includes: 'Everything included',
     pricing_item_1: 'Automated monthly billing',
     pricing_item_2: 'WhatsApp & email delivery',
     pricing_item_3: 'Mobile money & card payments',
@@ -94,7 +101,8 @@ const translations = {
     status_pending: 'Pending',
 
     // Footer
-    footer_powered: 'Powered by ChatWorks',
+    footer_credit: 'For Fivcom by',
+    footer_chatworks: 'ChatWorks',
     footer_terms: 'Terms of Service',
     footer_privacy: 'Privacy Policy',
   },
@@ -150,10 +158,17 @@ const translations = {
 
     // Pricing
     pricing_title: 'Tarification simple et transparente',
-    pricing_subtitle: '1 000 KES par locataire par mois. Pas de frais cachés.',
+    pricing_subtitle: 'Un seul forfait. Tout inclus. Économisez 25% avec la facturation annuelle.',
+    pricing_monthly: 'Mensuel',
+    pricing_annual: 'Annuel',
+    pricing_monthly_price: '200',
+    pricing_annual_price: '150',
+    pricing_monthly_label: 'par locataire / mois',
+    pricing_annual_label: 'par locataire / mois, facturé annuellement',
+    pricing_save: 'Économisez 25%',
     pricing_per_tenant: 'par locataire / mois',
-    pricing_cta: "Essai gratuit",
-    pricing_includes: 'Inclus',
+    pricing_cta: 'Essai gratuit',
+    pricing_includes: 'Tout inclus',
     pricing_item_1: 'Facturation mensuelle automatique',
     pricing_item_2: 'Livraison WhatsApp et email',
     pricing_item_3: 'Paiements mobile money et carte',
@@ -193,7 +208,8 @@ const translations = {
     status_pending: 'En attente',
 
     // Footer
-    footer_powered: 'Propulsé par ChatWorks',
+    footer_credit: 'Pour Fivcom par',
+    footer_chatworks: 'ChatWorks',
     footer_terms: "Conditions d'utilisation",
     footer_privacy: 'Politique de confidentialité',
   },
