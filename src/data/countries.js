@@ -1,16 +1,18 @@
+const S3_FLAGS = 'https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/flags';
+
 const COUNTRIES = [
-  { code: 'KE', name: 'Kenya', nameEn: 'Kenya', nameFr: 'Kenya', flag: '\u{1F1F0}\u{1F1EA}', currency: 'KES', mobileMoneyProviders: ['M-Pesa', 'Airtel Money'] },
-  { code: 'TZ', name: 'Tanzania', nameEn: 'Tanzania', nameFr: 'Tanzanie', flag: '\u{1F1F9}\u{1F1FF}', currency: 'TZS', mobileMoneyProviders: ['M-Pesa', 'Tigo Pesa'] },
-  { code: 'UG', name: 'Uganda', nameEn: 'Uganda', nameFr: 'Ouganda', flag: '\u{1F1FA}\u{1F1EC}', currency: 'UGX', mobileMoneyProviders: ['MTN MoMo', 'Airtel Money'] },
-  { code: 'RW', name: 'Rwanda', nameEn: 'Rwanda', nameFr: 'Rwanda', flag: '\u{1F1F7}\u{1F1FC}', currency: 'RWF', mobileMoneyProviders: ['MTN MoMo', 'Airtel Money'] },
-  { code: 'NG', name: 'Nigeria', nameEn: 'Nigeria', nameFr: 'Nigéria', flag: '\u{1F1F3}\u{1F1EC}', currency: 'NGN', mobileMoneyProviders: ['OPay', 'PalmPay'] },
-  { code: 'GH', name: 'Ghana', nameEn: 'Ghana', nameFr: 'Ghana', flag: '\u{1F1EC}\u{1F1ED}', currency: 'GHS', mobileMoneyProviders: ['MTN MoMo', 'Vodafone Cash'] },
-  { code: 'ZA', name: 'South Africa', nameEn: 'South Africa', nameFr: 'Afrique du Sud', flag: '\u{1F1FF}\u{1F1E6}', currency: 'ZAR', mobileMoneyProviders: ['SnapScan'] },
-  { code: 'ET', name: 'Ethiopia', nameEn: 'Ethiopia', nameFr: 'Éthiopie', flag: '\u{1F1EA}\u{1F1F9}', currency: 'ETB', mobileMoneyProviders: ['Telebirr'] },
-  { code: 'CD', name: 'DR Congo', nameEn: 'DR Congo', nameFr: 'RD Congo', flag: '\u{1F1E8}\u{1F1E9}', currency: 'CDF', mobileMoneyProviders: ['M-Pesa', 'Airtel Money'] },
-  { code: 'CI', name: "Côte d'Ivoire", nameEn: "Côte d'Ivoire", nameFr: "Côte d'Ivoire", flag: '\u{1F1E8}\u{1F1EE}', currency: 'XOF', mobileMoneyProviders: ['Orange Money', 'MTN MoMo'] },
-  { code: 'SN', name: 'Senegal', nameEn: 'Senegal', nameFr: 'Sénégal', flag: '\u{1F1F8}\u{1F1F3}', currency: 'XOF', mobileMoneyProviders: ['Orange Money', 'Wave'] },
-  { code: 'CM', name: 'Cameroon', nameEn: 'Cameroon', nameFr: 'Cameroun', flag: '\u{1F1E8}\u{1F1F2}', currency: 'XAF', mobileMoneyProviders: ['MTN MoMo', 'Orange Money'] },
+  { code: 'KE', name: 'Kenya', nameEn: 'Kenya', nameFr: 'Kenya', flagImg: `${S3_FLAGS}/Kenya.png`, currency: 'KES', lang: 'en', mobileMoneyProviders: ['M-Pesa', 'Airtel Money'] },
+  { code: 'TZ', name: 'Tanzania', nameEn: 'Tanzania', nameFr: 'Tanzanie', flagImg: `${S3_FLAGS}/Tanzania.png`, currency: 'TZS', lang: 'en', mobileMoneyProviders: ['M-Pesa', 'Tigo Pesa'] },
+  { code: 'UG', name: 'Uganda', nameEn: 'Uganda', nameFr: 'Ouganda', flagImg: `${S3_FLAGS}/Uganda.png`, currency: 'UGX', lang: 'en', mobileMoneyProviders: ['MTN MoMo', 'Airtel Money'] },
+  { code: 'RW', name: 'Rwanda', nameEn: 'Rwanda', nameFr: 'Rwanda', flagImg: `${S3_FLAGS}/Rwanda.png`, currency: 'RWF', lang: 'fr', mobileMoneyProviders: ['MTN MoMo', 'Airtel Money'] },
+  { code: 'NG', name: 'Nigeria', nameEn: 'Nigeria', nameFr: 'Nigéria', flagImg: `${S3_FLAGS}/Nigeria.png`, currency: 'NGN', lang: 'en', mobileMoneyProviders: ['OPay', 'PalmPay'] },
+  { code: 'GH', name: 'Ghana', nameEn: 'Ghana', nameFr: 'Ghana', flagImg: `${S3_FLAGS}/Ghana.png`, currency: 'GHS', lang: 'en', mobileMoneyProviders: ['MTN MoMo', 'Vodafone Cash'] },
+  { code: 'ZA', name: 'South Africa', nameEn: 'South Africa', nameFr: 'Afrique du Sud', flagImg: `${S3_FLAGS}/South-Africa.png`, currency: 'ZAR', lang: 'en', mobileMoneyProviders: ['SnapScan'] },
+  { code: 'ET', name: 'Ethiopia', nameEn: 'Ethiopia', nameFr: 'Éthiopie', flagImg: `${S3_FLAGS}/Ethiopia.png`, currency: 'ETB', lang: 'en', mobileMoneyProviders: ['Telebirr'] },
+  { code: 'CD', name: 'DR Congo', nameEn: 'DR Congo', nameFr: 'RD Congo', flagImg: `${S3_FLAGS}/Democratic-republic-of-congo.png`, currency: 'CDF', lang: 'fr', mobileMoneyProviders: ['M-Pesa', 'Airtel Money'] },
+  { code: 'CI', name: "Côte d'Ivoire", nameEn: "Côte d'Ivoire", nameFr: "Côte d'Ivoire", flagImg: `${S3_FLAGS}/Ivory-coast.png`, currency: 'XOF', lang: 'fr', mobileMoneyProviders: ['Orange Money', 'MTN MoMo'] },
+  { code: 'SN', name: 'Senegal', nameEn: 'Senegal', nameFr: 'Sénégal', flagImg: `${S3_FLAGS}/Senegal.png`, currency: 'XOF', lang: 'fr', mobileMoneyProviders: ['Orange Money', 'Wave'] },
+  { code: 'CM', name: 'Cameroon', nameEn: 'Cameroon', nameFr: 'Cameroun', flagImg: `${S3_FLAGS}/Cameroon.png`, currency: 'XAF', lang: 'fr', mobileMoneyProviders: ['MTN MoMo', 'Orange Money'] },
 ];
 
 export default COUNTRIES;

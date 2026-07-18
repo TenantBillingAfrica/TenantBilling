@@ -1,0 +1,9 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "tenant-billing-backend"
+resolve_s3 = true
+s3_prefix = "tenant-billing-backend"
+region = "eu-north-1"
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true

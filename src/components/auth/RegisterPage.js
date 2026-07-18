@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, PartyPopper } from 'lucide-react';
+import { ArrowRight, PartyPopper, AlertCircle } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { createApplication } from '../../services/applications.service';
 import COUNTRIES from '../../data/countries';
 
 const RegisterPage = () => {
   const { t, lang } = useLanguage();
   const navigate = useNavigate();
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -17,9 +20,18 @@ const RegisterPage = () => {
     country: 'KE',
   });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await createApplication(form);
+      setSubmitted(true);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to submit application. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const updateField = (key, value) => {
@@ -53,7 +65,7 @@ const RegisterPage = () => {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-4">
-            <img src="/logo.png" alt="Tenant Billing" className="h-10" />
+            <img src={process.env.PUBLIC_URL + '/logo.png'} alt="Tenant Billing" className="h-10" />
             <span className="text-lg font-bold text-navy-800 tracking-tight">
               Tenant Billing
             </span>
@@ -79,8 +91,9 @@ const RegisterPage = () => {
                   required
                   value={form[field.key]}
                   onChange={(e) => updateField(field.key, e.target.value)}
+                  disabled={isSubmitting}
                   placeholder={field.placeholder}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 placeholder:text-gray-400 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 placeholder:text-gray-400 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
                 />
               </div>
             ))}
@@ -92,7 +105,8 @@ const RegisterPage = () => {
               <select
                 value={form.country}
                 onChange={(e) => updateField('country', e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all"
+                disabled={isSubmitting}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
               >
                 {COUNTRIES.map((c) => (
                   <option key={c.code} value={c.code}>
@@ -102,11 +116,19 @@ const RegisterPage = () => {
               </select>
             </div>
 
+            {error && (
+              <div className="mb-4 px-4 py-2.5 bg-red-50 rounded-xl flex items-start gap-2">
+                <AlertCircle size={14} className="text-red-500 mt-0.5 flex-shrink-0" />
+                <p className="text-xs text-red-600 font-medium">{error}</p>
+              </div>
+            )}
+
             <button
               type="submit"
-              className="w-full flex items-center justify-center gap-2 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all border-none cursor-pointer"
+              disabled={isSubmitting}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
             >
-              {t('reg_submit')} <ArrowRight size={16} />
+              {isSubmitting ? t('loading') : t('reg_submit')} {!isSubmitting && <ArrowRight size={16} />}
             </button>
           </form>
         </div>

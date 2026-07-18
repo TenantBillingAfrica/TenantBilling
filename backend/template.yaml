@@ -1,0 +1,674 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: TenantBilling Serverless Backend
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    MemorySize: 256
+    Timeout: 30
+    Environment:
+      Variables:
+        APPLICATIONS_TABLE: !Ref ApplicationsTable
+        BUILDINGS_TABLE: !Ref BuildingsTable
+        TENANTS_TABLE: !Ref TenantsTable
+        STAFF_TABLE: !Ref StaffTable
+        INVOICES_TABLE: !Ref InvoicesTable
+        PAYMENTS_TABLE: !Ref PaymentsTable
+        METER_READINGS_TABLE: !Ref MeterReadingsTable
+        USERS_TABLE: !Ref UsersTable
+        CHATWORKS_API_TOKEN: '1c3cfaa9-5f83-4c77-a604-bd280c242d66'
+        CHATWORKS_COLLECTIONS_URL: 'https://api.chatworks.chat/collections'
+        CHATWORKS_CALLBACK_URL: 'https://www.chatworks.chat/api/pawapay/callback'
+
+Parameters:
+  CognitoDomain:
+    Type: String
+    Default: tenant-billing-auth
+
+Resources:
+  # ─── Cognito ───────────────────────────────────────────────
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: TenantBillingUserPool
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          Required: true
+          Mutable: true
+        - Name: role
+          AttributeDataType: String
+          Mutable: true
+        - Name: instanceId
+          AttributeDataType: String
+          Mutable: true
+        - Name: instanceName
+          AttributeDataType: String
+          Mutable: true
+      LambdaConfig:
+        PostConfirmation: !GetAtt PostConfirmationFunction.Arn
+        PreSignUp: !GetAtt PreSignUpFunction.Arn
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: TenantBillingWebApp
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+      PreventUserExistenceErrors: ENABLED
+
+  # ─── API Gateway ───────────────────────────────────────────
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowOrigins:
+          - 'http://localhost:3000'
+          - 'https://main.d3l8nnw6zdjdhc.amplifyapp.com'
+          - 'https://www.tenantbilling.africa'
+          - 'https://tenantbilling.africa'
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowCredentials: true
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        Authorizers:
+          CognitoAuthorizer:
+            AuthorizationScopes:
+              - openid
+            IdentitySource: $request.header.Authorization
+            JwtConfiguration:
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+              audience:
+                - !Ref UserPoolClient
+
+  # ─── DynamoDB Tables ───────────────────────────────────────
+  ApplicationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Applications
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: Status-Date
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  BuildingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Buildings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+
+  TenantsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Tenants
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: buildingId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: Building
+          KeySchema:
+            - AttributeName: buildingId
+              KeyType: HASH
+            - AttributeName: id
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  StaffTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Staff
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+
+  InvoicesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Invoices
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: Tenant
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: Status
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  PaymentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Payments
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: invoiceId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: transactionId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: Invoice
+          KeySchema:
+            - AttributeName: invoiceId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: Transaction
+          KeySchema:
+            - AttributeName: transactionId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  MeterReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_MeterReadings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: instanceId
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: instanceId
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: Tenant
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Users
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+        - AttributeName: instanceId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: Email
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+        - IndexName: Instance
+          KeySchema:
+            - AttributeName: instanceId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+  # ─── Lambda Functions ──────────────────────────────────────
+
+  # Auth Triggers
+  PostConfirmationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Auth-PostConfirmation
+      Handler: handlers/auth/post-confirmation.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+
+  PostConfirmationPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PostConfirmationFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  PreSignUpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Auth-PreSignUp
+      Handler: handlers/auth/pre-signup.handler
+      CodeUri: .
+
+  PreSignUpPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !GetAtt PreSignUpFunction.Arn
+      Principal: cognito-idp.amazonaws.com
+      SourceArn: !GetAtt UserPool.Arn
+
+  # Applications
+  ApplicationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Applications
+      Handler: handlers/applications.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+              Resource: !GetAtt UserPool.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+      Events:
+        CreateApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /applications
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        ListApplications:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /applications
+            Method: GET
+        ApproveApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /applications/{id}/approve
+            Method: PUT
+        RejectApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /applications/{id}/reject
+            Method: PUT
+        SuspendApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /applications/{id}/suspend
+            Method: PUT
+
+  # Buildings
+  BuildingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Buildings
+      Handler: handlers/buildings.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buildings
+            Method: GET
+        Create:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buildings
+            Method: POST
+        Update:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buildings/{id}
+            Method: PUT
+        Delete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /buildings/{id}
+            Method: DELETE
+
+  # Tenants
+  TenantsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Tenants
+      Handler: handlers/tenants.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenants
+            Method: GET
+        Create:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenants
+            Method: POST
+        Update:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenants/{id}
+            Method: PUT
+        Delete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenants/{id}
+            Method: DELETE
+
+  # Staff
+  StaffFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Staff
+      Handler: handlers/staff.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StaffTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminUpdateUserAttributes
+              Resource: !GetAtt UserPool.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /staff
+            Method: GET
+        Create:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /staff
+            Method: POST
+        Update:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /staff/{id}
+            Method: PUT
+        Delete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /staff/{id}
+            Method: DELETE
+
+  # Invoices
+  InvoicesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Invoices
+      Handler: handlers/invoices.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeterReadingsTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invoices
+            Method: GET
+        Generate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invoices/generate
+            Method: POST
+        Update:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /invoices/{id}
+            Method: PUT
+
+  # Payments
+  PaymentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Payments
+      Handler: handlers/payments.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PaymentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /payments
+            Method: GET
+        Initiate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /payments/initiate
+            Method: POST
+        Callback:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /payments/callback
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  # Meter Readings
+  MeterReadingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-MeterReadings
+      Handler: handlers/meter-readings.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeterReadingsTable
+      Events:
+        List:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meter-readings
+            Method: GET
+        Create:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /meter-readings
+            Method: POST
+
+  # Admin Stats
+  AdminStatsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-AdminStats
+      Handler: handlers/admin-stats.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref UsersTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PaymentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+      Events:
+        Stats:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/stats
+            Method: GET
+        PnL:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/pnl
+            Method: GET
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  UserPoolId:
+    Description: Cognito User Pool ID
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito User Pool Client ID
+    Value: !Ref UserPoolClient

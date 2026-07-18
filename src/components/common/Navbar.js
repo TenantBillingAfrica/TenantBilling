@@ -17,7 +17,7 @@ const Navbar = () => {
   return (
     <nav className="bg-navy-800 px-6 py-0 flex items-center justify-between" style={{ height: 64 }}>
       <Link to="/" className="flex items-center gap-3 no-underline">
-        <img src="/logo.png" alt="Tenant Billing" className="h-8" style={{ filter: 'brightness(0) invert(1)' }} />
+        <img src={process.env.PUBLIC_URL + '/logo.png'} alt="Tenant Billing" className="h-8" style={{ filter: 'brightness(0) invert(1)' }} />
         <span className="text-base font-bold text-white tracking-tight">
           Tenant Billing
         </span>

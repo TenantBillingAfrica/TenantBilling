@@ -100,6 +100,39 @@ const translations = {
     status_suspended: 'Suspended',
     status_pending: 'Pending',
 
+    // Hero
+    hero_badge: 'Property Management Made Joyful',
+    hero_heading_1: 'Keep your tenants',
+    hero_heading_happy: 'happy',
+    hero_heading_2: '& your billing',
+    hero_heading_effortless: 'effortless',
+
+    // Stats
+    stat_countries: 'African countries',
+    stat_landlords: 'Happy landlords',
+    stat_tenants: 'Tenants served',
+    stat_uptime: 'Uptime guarantee',
+
+    // Happy Tenants section
+    happy_tenants_badge: 'Happy Tenants',
+    happy_tenants_title: 'Building happier communities across Africa',
+    happy_tenants_desc: 'When billing is transparent and communication is seamless, tenants thrive. Our platform helps landlords build trust, reduce disputes, and create homes people love.',
+    happy_stat_satisfaction: 'Tenant satisfaction',
+    happy_stat_disputes: 'Fewer billing disputes',
+    happy_stat_faster: 'Faster rent collection',
+    happy_stat_support: 'WhatsApp support',
+
+    // Features section
+    features_badge: 'Features',
+    features_title_1: 'Everything you need to',
+    features_title_2: 'manage tenants',
+
+    // Pricing section
+    pricing_badge: 'Pricing',
+
+    // Payment providers
+    payments_badge: 'Trusted Mobile Payment Partners',
+
     // Footer
     footer_credit: 'For Fivcom by',
     footer_chatworks: 'ChatWorks',
@@ -206,6 +239,39 @@ const translations = {
     status_active: 'Actif',
     status_suspended: 'Suspendu',
     status_pending: 'En attente',
+
+    // Hero
+    hero_badge: 'Gestion immobilière joyeuse',
+    hero_heading_1: 'Gardez vos locataires',
+    hero_heading_happy: 'heureux',
+    hero_heading_2: '& votre facturation',
+    hero_heading_effortless: 'sans effort',
+
+    // Stats
+    stat_countries: 'Pays africains',
+    stat_landlords: 'Propriétaires satisfaits',
+    stat_tenants: 'Locataires servis',
+    stat_uptime: 'Garantie de disponibilité',
+
+    // Happy Tenants section
+    happy_tenants_badge: 'Locataires heureux',
+    happy_tenants_title: 'Construire des communautés plus heureuses à travers l\'Afrique',
+    happy_tenants_desc: 'Quand la facturation est transparente et la communication fluide, les locataires s\'épanouissent. Notre plateforme aide les propriétaires à instaurer la confiance, réduire les litiges et créer des foyers que les gens adorent.',
+    happy_stat_satisfaction: 'Satisfaction locataires',
+    happy_stat_disputes: 'Moins de litiges',
+    happy_stat_faster: 'Collecte 3x plus rapide',
+    happy_stat_support: 'Support WhatsApp',
+
+    // Features section
+    features_badge: 'Fonctionnalités',
+    features_title_1: 'Tout ce dont vous avez besoin pour',
+    features_title_2: 'gérer vos locataires',
+
+    // Pricing section
+    pricing_badge: 'Tarifs',
+
+    // Payment providers
+    payments_badge: 'Partenaires de paiement mobile de confiance',
 
     // Footer
     footer_credit: 'Pour Fivcom par',

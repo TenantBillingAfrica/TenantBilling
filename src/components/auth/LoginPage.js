@@ -1,22 +1,17 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Lock } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 
-const DEMO_ACCOUNTS = [
-  { email: 'admin@tenantbilling.com', password: 'admin123', label: 'System Admin' },
-  { email: 'landlord@demo.com', password: 'demo123', label: 'Landlord' },
-  { email: 'meter@demo.com', password: 'demo123', label: 'Meter Reader' },
-];
-
 const LoginPage = () => {
   const { t } = useLanguage();
-  const { login } = useAuth();
+  const { login, changePassword, pendingChallenge } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -29,16 +24,83 @@ const LoginPage = () => {
     setIsSubmitting(false);
     if (result.success) {
       navigate('/dashboard');
+    } else if (result.challenge === 'NEW_PASSWORD_REQUIRED') {
+      // Show new password form
     } else {
       setError(result.error);
     }
   };
 
-  const handleDemoFill = (account) => {
-    setEmail(account.email);
-    setPassword(account.password);
+  const handleNewPassword = async (e) => {
+    e.preventDefault();
     setError('');
+    setIsSubmitting(true);
+    const result = await changePassword(newPassword);
+    setIsSubmitting(false);
+    if (result.success) {
+      navigate('/dashboard');
+    } else {
+      setError(result.error);
+    }
   };
+
+  // Force password change screen
+  if (pendingChallenge) {
+    return (
+      <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-8">
+            <div className="flex items-center justify-center gap-2.5 mb-4">
+              <img src={process.env.PUBLIC_URL + '/logo.png'} alt="Tenant Billing" className="h-10" />
+              <span className="text-lg font-bold text-navy-800 tracking-tight">
+                Tenant Billing
+              </span>
+            </div>
+            <h1 className="text-2xl font-extrabold text-navy-800">Set New Password</h1>
+            <p className="text-sm text-gray-500 mt-1">Your account requires a new password.</p>
+          </div>
+
+          <div className="bg-white rounded-2xl p-8 shadow-xl shadow-purple-100/30">
+            <div className="w-12 h-12 mx-auto mb-5 rounded-xl bg-amber-50 flex items-center justify-center">
+              <Lock size={20} className="text-amber-500" />
+            </div>
+            <form onSubmit={handleNewPassword}>
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-navy-800 mb-1.5">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  required
+                  minLength={8}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={isSubmitting}
+                  placeholder="Minimum 8 characters"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 placeholder:text-gray-400 bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
+                />
+                <p className="text-xs text-gray-400 mt-1.5">Must include uppercase, lowercase, and numbers</p>
+              </div>
+
+              {error && (
+                <div className="mb-4 px-4 py-2.5 bg-red-50 rounded-xl">
+                  <p className="text-xs text-red-600 font-medium">{error}</p>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
+              >
+                {isSubmitting ? t('loading') : 'Set Password & Continue'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
@@ -46,7 +108,7 @@ const LoginPage = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-4">
-            <img src="/logo.png" alt="Tenant Billing" className="h-10" />
+            <img src={process.env.PUBLIC_URL + '/logo.png'} alt="Tenant Billing" className="h-10" />
             <span className="text-lg font-bold text-navy-800 tracking-tight">
               Tenant Billing
             </span>
@@ -111,25 +173,6 @@ const LoginPage = () => {
               {isSubmitting ? t('loading') : t('login_submit')}
             </button>
           </form>
-        </div>
-
-        {/* Demo accounts */}
-        <div className="mt-6 bg-white rounded-2xl p-5 shadow-sm">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-            Demo Accounts
-          </p>
-          <div className="flex flex-col gap-2">
-            {DEMO_ACCOUNTS.map((acct) => (
-              <button
-                key={acct.email}
-                onClick={() => handleDemoFill(acct)}
-                className="w-full text-left px-4 py-3 text-sm text-gray-600 hover:bg-lavender-50 bg-transparent rounded-xl border border-gray-100 cursor-pointer transition-colors"
-              >
-                <span className="font-semibold text-navy-800">{acct.label}</span>
-                <span className="text-gray-400 ml-2 text-xs">{acct.email}</span>
-              </button>
-            ))}
-          </div>
         </div>
       </div>
     </div>

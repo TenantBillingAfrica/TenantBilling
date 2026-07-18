@@ -19,22 +19,28 @@ const FEATURES = [
 
 const S3_BASE = 'https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images';
 
-const HERO_IMAGES = [
-  { src: `${S3_BASE}/happy-tenants-handshake.jpg`, alt: 'Happy tenants signing lease' },
-  { src: `${S3_BASE}/happy-family-moving.jpg`, alt: 'Happy family moving into new home' },
-  { src: `${S3_BASE}/happy-couple-newHome.webp`, alt: 'Happy couple in their new home' },
+const PAYMENT_PROVIDERS = [
+  { name: 'M-Pesa', logo: `${S3_BASE}/payments/mpesa.png` },
+  { name: 'MTN MoMo', logo: `${S3_BASE}/payments/momo.png` },
+  { name: 'Airtel Money', logo: `${S3_BASE}/payments/airtelmoney.png` },
+  { name: 'Orange Money', logo: `${S3_BASE}/payments/orangemoney.png` },
+  { name: 'Vodacom', logo: `${S3_BASE}/payments/vodacom.png` },
+  { name: 'Ethio Telecom', logo: `${S3_BASE}/payments/ethiotelecom.png` },
+  { name: 'Halo Pesa', logo: `${S3_BASE}/payments/halopesa.png` },
+  { name: 'Free Money', logo: `${S3_BASE}/payments/freemoney.png` },
+  { name: 'Moov', logo: `${S3_BASE}/payments/moov.png` },
 ];
 
 const STATS = [
-  { value: '12', label: 'African countries', icon: Globe },
-  { value: '500+', label: 'Happy landlords', icon: Home },
-  { value: '25K+', label: 'Tenants served', icon: Heart },
-  { value: '99.9%', label: 'Uptime guarantee', icon: Shield },
+  { value: '12', labelKey: 'stat_countries', icon: Globe },
+  { value: '500+', labelKey: 'stat_landlords', icon: Home },
+  { value: '25K+', labelKey: 'stat_tenants', icon: Heart },
+  { value: '99.9%', labelKey: 'stat_uptime', icon: Shield },
 ];
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { t, lang } = useLanguage();
+  const { t, lang, setLang } = useLanguage();
   const [billingCycle, setBillingCycle] = useState('monthly');
 
   return (
@@ -54,22 +60,22 @@ const HomePage = () => {
           <div className="inline-flex items-center gap-2 px-5 py-2 bg-white/10 backdrop-blur-sm rounded-full mb-8">
             <Sparkles size={14} className="text-sunshine-400" />
             <span className="text-sm font-medium text-white/80">
-              Property Management Made Joyful
+              {t('hero_badge')}
             </span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white tracking-tight mb-6 leading-[1.1]">
-            Keep your tenants{' '}
+            {t('hero_heading_1')}{' '}
             <span className="text-transparent bg-clip-text" style={{
               backgroundImage: 'linear-gradient(135deg, #fbbf24, #f97316, #fb7185)',
             }}>
-              happy
+              {t('hero_heading_happy')}
             </span>
-            <br />& your billing{' '}
+            <br />{t('hero_heading_2')}{' '}
             <span className="text-transparent bg-clip-text" style={{
               backgroundImage: 'linear-gradient(135deg, #34d399, #06b6d4, #818cf8)',
             }}>
-              effortless
+              {t('hero_heading_effortless')}
             </span>
           </h1>
 
@@ -92,26 +98,6 @@ const HomePage = () => {
             </button>
           </div>
 
-          {/* Hero image collage */}
-          <div className="relative max-w-3xl mx-auto">
-            <div className="grid grid-cols-3 gap-4">
-              {HERO_IMAGES.map((img, i) => (
-                <div
-                  key={i}
-                  className="relative overflow-hidden rounded-2xl shadow-2xl shadow-black/30"
-                  style={{ transform: i === 1 ? 'translateY(-12px)' : 'translateY(0)' }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-t from-navy-900/40 to-transparent z-10" />
-                  <img
-                    src={img.src}
-                    alt={img.alt}
-                    className="w-full h-48 object-cover"
-                    loading="eager"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Wave divider */}
@@ -134,7 +120,7 @@ const HomePage = () => {
                     <Icon size={20} className="text-navy-700" />
                   </div>
                   <p className="text-3xl font-extrabold text-navy-800">{stat.value}</p>
-                  <p className="text-sm text-gray-500 mt-1">{stat.label}</p>
+                  <p className="text-sm text-gray-500 mt-1">{t(stat.labelKey)}</p>
                 </div>
               );
             })}
@@ -179,20 +165,20 @@ const HomePage = () => {
             <div>
               <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-sunshine-100 text-sunshine-700 rounded-full text-sm font-semibold mb-4">
                 <Heart size={14} />
-                {t('happy_tenants_badge') || 'Happy Tenants'}
+                {t('happy_tenants_badge')}
               </span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-navy-800 tracking-tight mb-4">
-                {t('happy_tenants_title') || 'Building happier communities across Africa'}
+                {t('happy_tenants_title')}
               </h2>
               <p className="text-gray-500 leading-relaxed mb-6">
-                {t('happy_tenants_desc') || 'When billing is transparent and communication is seamless, tenants thrive. Our platform helps landlords build trust, reduce disputes, and create homes people love.'}
+                {t('happy_tenants_desc')}
               </p>
               <div className="grid grid-cols-2 gap-4">
                 {[
-                  { value: '95%', label: t('happy_stat_satisfaction') || 'Tenant satisfaction' },
-                  { value: '60%', label: t('happy_stat_disputes') || 'Fewer billing disputes' },
-                  { value: '3x', label: t('happy_stat_faster') || 'Faster rent collection' },
-                  { value: '24/7', label: t('happy_stat_support') || 'WhatsApp support' },
+                  { value: '95%', label: t('happy_stat_satisfaction') },
+                  { value: '60%', label: t('happy_stat_disputes') },
+                  { value: '3x', label: t('happy_stat_faster') },
+                  { value: '24/7', label: t('happy_stat_support') },
                 ].map((s, i) => (
                   <div key={i} className="p-4 bg-lavender-50 rounded-2xl">
                     <p className="text-2xl font-extrabold text-navy-800">{s.value}</p>
@@ -211,13 +197,13 @@ const HomePage = () => {
           <div className="text-center mb-16">
             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-lavender-100 text-navy-700 rounded-full text-sm font-semibold mb-4">
               <Sparkles size={14} />
-              Features
+              {t('features_badge')}
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-navy-800 tracking-tight">
-              Everything you need to{' '}
+              {t('features_title_1')}{' '}
               <span className="text-transparent bg-clip-text" style={{
                 backgroundImage: 'linear-gradient(135deg, #7c3aed, #db2777)',
-              }}>manage tenants</span>
+              }}>{t('features_title_2')}</span>
             </h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -258,10 +244,11 @@ const HomePage = () => {
             {COUNTRIES.map((country) => (
               <div
                 key={country.code}
-                className="flex flex-col items-center gap-2 px-5 py-4 bg-white rounded-2xl border border-purple-100 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100/40 hover:-translate-y-0.5 transition-all duration-200 cursor-default"
+                onClick={() => setLang(country.lang)}
+                className="flex flex-col items-center gap-2 px-5 py-4 bg-white rounded-2xl border border-purple-100 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
                 style={{ minWidth: 100 }}
               >
-                <span className="text-3xl">{country.flag}</span>
+                <img src={country.flagImg} alt={country.nameEn} className="w-10 h-10 object-contain rounded" />
                 <span className="text-xs font-semibold text-navy-700 text-center leading-tight">
                   {lang === 'fr' ? country.nameFr : country.nameEn}
                 </span>
@@ -281,7 +268,7 @@ const HomePage = () => {
 
         <div className="relative max-w-3xl mx-auto px-6 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white/10 text-white/80 rounded-full text-sm font-semibold mb-4 backdrop-blur-sm">
-            Pricing
+            {t('pricing_badge')}
           </span>
           <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-3 tracking-tight">{t('pricing_title')}</h2>
           <p className="text-white/50 mb-10">{t('pricing_subtitle')}</p>
@@ -349,6 +336,27 @@ const HomePage = () => {
             >
               {t('pricing_cta')}
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Payment Providers */}
+      <section className="py-16 bg-warm-50">
+        <div className="max-w-5xl mx-auto px-6 text-center">
+          <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-8">
+            {t('payments_badge')}
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-8">
+            {PAYMENT_PROVIDERS.map((provider) => (
+              <div key={provider.name} className="flex flex-col items-center gap-2">
+                <img
+                  src={provider.logo}
+                  alt={provider.name}
+                  className="h-12 w-auto object-contain grayscale hover:grayscale-0 opacity-70 hover:opacity-100 transition-all duration-300"
+                />
+                <span className="text-[10px] text-gray-400 font-medium">{provider.name}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>

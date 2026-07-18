@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "amazon-cognito-identity-js": "^6.3.20",
     "autoprefixer": "^10.5.4",
+    "axios": "^1.18.1",
     "lucide-react": "^1.25.0",
     "postcss": "^8.5.19",
     "react": "^19.2.7",
