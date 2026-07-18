@@ -65,7 +65,7 @@ const RegisterPage = () => {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2.5 mb-4">
-            <img src={process.env.PUBLIC_URL + '/logo.png'} alt="Tenant Billing" className="h-10" />
+            <img src="https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/logo.png" alt="Tenant Billing" className="h-10" />
             <span className="text-lg font-bold text-navy-800 tracking-tight">
               Tenant Billing
             </span>
