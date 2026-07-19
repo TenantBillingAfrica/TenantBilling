@@ -123,9 +123,15 @@ const LoginPage = () => {
               </div>
 
               {whatsAppInfo && (
-                <div className="mb-4 px-4 py-2.5 bg-emerald-50 rounded-xl flex items-center gap-2">
-                  <MessageSquare size={16} className="text-emerald-600 shrink-0" />
-                  <p className="text-xs text-emerald-700 font-medium">{whatsAppInfo}</p>
+                <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-100 rounded-xl space-y-1.5 text-left">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare size={16} className="text-emerald-600 shrink-0" />
+                    <p className="text-xs text-emerald-800 font-bold">{whatsAppInfo}</p>
+                  </div>
+                  <div className="text-[11px] text-emerald-700 space-y-1 pt-1.5 border-t border-emerald-200/50">
+                    <p>💬 <b>WhatsApp:</b> Sender <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">+1 (205) 846-9763</code> (Check Message Requests / Unknown Senders)</p>
+                    <p>✉️ <b>Email:</b> Sender <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">no-reply@chatworks.chat</code> (Check Spam / Junk folder)</p>
+                  </div>
                 </div>
               )}
 
