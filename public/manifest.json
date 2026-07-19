@@ -1,6 +1,7 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "TenantBilling",
+  "name": "TenantBilling - Tenant Management Software for Africa",
+  "description": "All-in-one tenant management software for African landlords. Automate rent, water billing, mobile payments, and WhatsApp invoicing.",
   "icons": [
     {
       "src": "favicon.ico",
@@ -8,18 +9,19 @@
       "type": "image/x-icon"
     },
     {
-      "src": "logo192.png",
+      "src": "logo.png",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ],
   "start_url": ".",
   "display": "standalone",
-  "theme_color": "#000000",
-  "background_color": "#ffffff"
+  "theme_color": "#667eea",
+  "background_color": "#f8f7ff",
+  "categories": ["business", "finance", "productivity"],
+  "lang": "en",
+  "dir": "ltr",
+  "scope": "/",
+  "orientation": "any"
 }
