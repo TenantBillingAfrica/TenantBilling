@@ -6,6 +6,7 @@ import {
   logout as cognitoLogout,
   getCurrentSession,
 } from '../services/auth.service';
+import { sendWhatsAppOtp } from '../services/whatsapp.service';
 
 const AuthContext = createContext();
 
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }) => {
   });
   const [loading, setLoading] = useState(true);
   const [pendingChallenge, setPendingChallenge] = useState(null);
+  const [whatsAppSession, setWhatsAppSession] = useState(null);
 
   // On mount, verify/refresh the session
   useEffect(() => {
@@ -39,6 +41,16 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(false);
       })
       .finally(() => setLoading(false));
+  }, []);
+
+  const requestWhatsAppOtp = useCallback(async (phone) => {
+    try {
+      const data = await sendWhatsAppOtp(phone);
+      setWhatsAppSession(data);
+      return { success: true, data };
+    } catch (err) {
+      return { success: false, error: err.message || 'Failed to send WhatsApp OTP' };
+    }
   }, []);
 
   const login = useCallback(async (email, password) => {
@@ -105,6 +117,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setIsAuthenticated(false);
     setPendingChallenge(null);
+    setWhatsAppSession(null);
   }, []);
 
   return (
@@ -116,7 +129,9 @@ export const AuthProvider = ({ children }) => {
       logout,
       changePassword,
       confirmMfa,
+      requestWhatsAppOtp,
       pendingChallenge,
+      whatsAppSession,
     }}>
       {children}
     </AuthContext.Provider>

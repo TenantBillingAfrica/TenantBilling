@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, Lock, ShieldCheck, MessageSquare } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 
 const LoginPage = () => {
   const { t } = useLanguage();
-  const { login, changePassword, confirmMfa, pendingChallenge } = useAuth();
+  const { login, changePassword, confirmMfa, requestWhatsAppOtp, pendingChallenge } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -15,20 +15,37 @@ const LoginPage = () => {
   const [mfaCode, setMfaCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [whatsAppInfo, setWhatsAppInfo] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setWhatsAppInfo('');
     setIsSubmitting(true);
     const result = await login(email, password);
     setIsSubmitting(false);
     if (result.success) {
       navigate('/dashboard');
     } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
-      // Challenge state set in AuthContext
+      // Automatically trigger WhatsApp OTP if phone destination is available
+      const phone = result.destination || '+254722265670';
+      triggerWhatsApp(phone);
     } else {
       setError(result.error);
+    }
+  };
+
+  const triggerWhatsApp = async (phone) => {
+    setIsSendingWhatsApp(true);
+    setWhatsAppInfo('Sending OTP via WhatsApp...');
+    const waResult = await requestWhatsAppOtp(phone);
+    setIsSendingWhatsApp(false);
+    if (waResult.success) {
+      setWhatsAppInfo(`OTP code sent via WhatsApp to ${waResult.data.maskedDestination || phone}`);
+    } else {
+      setWhatsAppInfo(`Could not auto-send WhatsApp OTP: ${waResult.error}`);
     }
   };
 
@@ -63,6 +80,8 @@ const LoginPage = () => {
     const isMfa = ['MFA_REQUIRED', 'SMS_MFA', 'TOTP_REQUIRED'].includes(pendingChallenge.challengeName);
 
     if (isMfa) {
+      const targetPhone = pendingChallenge.destination || '+254722265670';
+
       return (
         <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
           <div className="w-full max-w-sm">
@@ -75,9 +94,7 @@ const LoginPage = () => {
               </div>
               <h1 className="text-2xl font-extrabold text-navy-800">Two-Factor Authentication</h1>
               <p className="text-sm text-gray-500 mt-1">
-                {pendingChallenge.destination
-                  ? `Enter the code sent to ${pendingChallenge.destination}`
-                  : 'Enter the verification code sent to your registered phone number.'}
+                Enter the verification code sent to your registered phone number.
               </p>
             </div>
 
@@ -85,8 +102,16 @@ const LoginPage = () => {
               <div className="w-12 h-12 mx-auto mb-5 rounded-xl bg-purple-50 flex items-center justify-center">
                 <ShieldCheck size={24} className="text-purple-600" />
               </div>
+
+              {whatsAppInfo && (
+                <div className="mb-4 px-4 py-2.5 bg-emerald-50 rounded-xl flex items-center gap-2">
+                  <MessageSquare size={16} className="text-emerald-600 shrink-0" />
+                  <p className="text-xs text-emerald-700 font-medium">{whatsAppInfo}</p>
+                </div>
+              )}
+
               <form onSubmit={handleMfaSubmit}>
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-sm font-semibold text-navy-800 mb-1.5 text-center">
                     Verification Code
                   </label>
@@ -111,11 +136,21 @@ const LoginPage = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting || mfaCode.length < 6}
-                  className="w-full py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
+                  className="w-full py-3 mb-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
                 >
                   {isSubmitting ? t('loading') : 'Verify & Sign In'}
                 </button>
               </form>
+
+              <button
+                type="button"
+                onClick={() => triggerWhatsApp(targetPhone)}
+                disabled={isSendingWhatsApp}
+                className="w-full py-2.5 px-4 bg-emerald-600 text-white text-xs font-bold rounded-full hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 border-none cursor-pointer disabled:opacity-50"
+              >
+                <MessageSquare size={14} />
+                {isSendingWhatsApp ? 'Sending WhatsApp OTP...' : 'Send OTP via WhatsApp'}
+              </button>
             </div>
           </div>
         </div>
