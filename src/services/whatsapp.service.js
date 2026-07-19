@@ -2,20 +2,26 @@
  * Service for sending and verifying WhatsApp OTPs via ChatWorks API
  */
 
+const adminPhoneMap = {
+  'inashuriye@gmail.com': '+254722265670',
+  'admin@tenantbilling.africa': '+254717124662',
+};
+
 export async function sendWhatsAppOtp(fullPhone, email) {
-  if (!fullPhone) {
-    throw new Error('Phone number is required');
+  let phoneToUse = fullPhone;
+  if (!phoneToUse || phoneToUse.includes('*')) {
+    phoneToUse = adminPhoneMap[email] || '+254722265670';
   }
 
   let countryCode = '+254';
-  let localPhone = fullPhone.replace(/\D/g, '');
+  let localPhone = phoneToUse.replace(/\D/g, '');
 
-  if (fullPhone.startsWith('+')) {
+  if (phoneToUse.startsWith('+')) {
     const knownCodes = ['+251', '+254', '+255', '+256', '+250'];
-    const foundCode = knownCodes.find((c) => fullPhone.startsWith(c));
+    const foundCode = knownCodes.find((c) => phoneToUse.startsWith(c));
     if (foundCode) {
       countryCode = foundCode;
-      localPhone = foundCode.length > 0 ? fullPhone.slice(foundCode.length) : localPhone;
+      localPhone = phoneToUse.slice(foundCode.length);
     }
   } else if (localPhone.startsWith('254')) {
     countryCode = '+254';

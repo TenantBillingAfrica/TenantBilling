@@ -29,6 +29,12 @@ const LoginPage = () => {
     '+254717124662': 'admin@tenantbilling.africa',
   };
 
+  const resolvePhone = (dest, userEmail) => {
+    if (userEmail && adminPhoneMap[userEmail]) return adminPhoneMap[userEmail];
+    if (dest && !dest.includes('*')) return dest;
+    return '+254722265670';
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -39,7 +45,7 @@ const LoginPage = () => {
     if (result.success) {
       navigate('/dashboard');
     } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
-      const targetPhone = result.destination || adminPhoneMap[email] || '+254722265670';
+      const targetPhone = resolvePhone(result.destination, email);
       const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
       triggerWhatsApp(targetPhone, targetEmail);
     } else {
@@ -92,7 +98,7 @@ const LoginPage = () => {
     const isMfa = ['MFA_REQUIRED', 'SMS_MFA', 'TOTP_REQUIRED'].includes(pendingChallenge.challengeName);
 
     if (isMfa) {
-      const targetPhone = pendingChallenge.destination || adminPhoneMap[email] || '+254722265670';
+      const targetPhone = resolvePhone(pendingChallenge.destination, email);
       const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
 
       return (
