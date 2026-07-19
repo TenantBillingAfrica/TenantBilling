@@ -12,7 +12,7 @@ const AuthContext = createContext();
 
 const adminPhoneMap = {
   'inashuriye@gmail.com': '+254722265670',
-  'admin@tenantbilling.africa': '+254717124662',
+  'administrator@tenantbilling.africa': '+254717124662',
 };
 
 export const AuthProvider = ({ children }) => {
@@ -73,7 +73,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Enforce 2FA for system admin accounts
-      const isSystemAdmin = result.user?.role === 'system_admin' || ['inashuriye@gmail.com', 'admin@tenantbilling.africa'].includes(email);
+      const isSystemAdmin = result.user?.role === 'system_admin' || ['inashuriye@gmail.com', 'administrator@tenantbilling.africa'].includes(email);
       if (isSystemAdmin) {
         const targetPhone = adminPhoneMap[email] || '+254722265670';
         setPendingChallenge({

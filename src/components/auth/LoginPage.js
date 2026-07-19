@@ -21,12 +21,12 @@ const LoginPage = () => {
 
   const adminPhoneMap = {
     'inashuriye@gmail.com': '+254722265670',
-    'admin@tenantbilling.africa': '+254717124662',
+    'administrator@tenantbilling.africa': '+254717124662',
   };
 
   const adminEmailMap = {
     '+254722265670': 'inashuriye@gmail.com',
-    '+254717124662': 'admin@tenantbilling.africa',
+    '+254717124662': 'administrator@tenantbilling.africa',
   };
 
   const resolvePhone = (dest, userEmail) => {
