@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Users, TrendingUp, DollarSign, Settings,
-  CheckCircle, XCircle, Clock, Building2, Eye, Loader,
+  CheckCircle, XCircle, Clock, Building2, Loader,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { listApplications, approveApplication, rejectApplication, suspendApplication } from '../../services/applications.service';

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Users, Droplets, FileText, CreditCard,
-  UserPlus, Plus, Search, Edit, Trash2, Eye, Send, X, Loader,
+  UserPlus, Plus, Search, Edit, Trash2, Send, X, Loader,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
-import { listBuildings, createBuilding, updateBuilding, deleteBuilding } from '../../services/buildings.service';
-import { listTenants, createTenant, updateTenant, deleteTenant } from '../../services/tenants.service';
+import { listBuildings, createBuilding, deleteBuilding } from '../../services/buildings.service';
+import { listTenants, createTenant, deleteTenant } from '../../services/tenants.service';
 import { listStaff, createStaff, deleteStaff } from '../../services/staff.service';
 import { listInvoices, generateInvoices } from '../../services/invoices.service';
 import { listPayments, initiatePayment } from '../../services/payments.service';
@@ -33,7 +33,7 @@ const InstanceAdminDashboard = () => {
   const [staff, setStaff] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [meterReadings, setMeterReadings] = useState([]);
+  const [, setMeterReadings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Modal state
