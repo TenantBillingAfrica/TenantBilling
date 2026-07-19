@@ -107,23 +107,12 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // 1. If Cognito MFA challenge object exists, attempt cognitoConfirmMfa first
-      if (pendingChallenge.cognitoUser) {
-        const mfaType = pendingChallenge.challengeName === 'TOTP_REQUIRED' ? 'SOFTWARE_TOKEN_MFA' : 'SMS_MFA';
-        const result = await confirmMfaCode(pendingChallenge.cognitoUser, mfaCode, mfaType);
-        localStorage.setItem('tb_id_token', result.idToken);
-        localStorage.setItem('tb_user', JSON.stringify(result.user));
-        setUser(result.user);
-        setIsAuthenticated(true);
-        setPendingChallenge(null);
-        return { success: true, user: result.user };
-      }
-
-      // 2. Otherwise, verify ChatWorks WhatsApp / Email OTP token
+      // 1. If ChatWorks OTP session exists, always verify against ChatWorks first
       if (whatsAppSession?.token) {
         const targetPhone = pendingChallenge.destination || adminPhoneMap[pendingChallenge.email] || '+254722265670';
         await verifyWhatsAppOtp({
           token: whatsAppSession.token,
+          emailToken: whatsAppSession.emailToken || null,
           code: mfaCode,
           phone: targetPhone,
         });
@@ -136,6 +125,18 @@ export const AuthProvider = ({ children }) => {
         setPendingChallenge(null);
         setWhatsAppSession(null);
         return { success: true, user: pendingChallenge.user };
+      }
+
+      // 2. Fallback: If only Cognito MFA challenge exists (no ChatWorks session)
+      if (pendingChallenge.cognitoUser) {
+        const mfaType = pendingChallenge.challengeName === 'TOTP_REQUIRED' ? 'SOFTWARE_TOKEN_MFA' : 'SMS_MFA';
+        const result = await confirmMfaCode(pendingChallenge.cognitoUser, mfaCode, mfaType);
+        localStorage.setItem('tb_id_token', result.idToken);
+        localStorage.setItem('tb_user', JSON.stringify(result.user));
+        setUser(result.user);
+        setIsAuthenticated(true);
+        setPendingChallenge(null);
+        return { success: true, user: result.user };
       }
 
       return { success: false, error: 'Please click Resend OTP to receive a new code' };

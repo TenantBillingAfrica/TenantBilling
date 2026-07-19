@@ -62,43 +62,55 @@ export async function sendWhatsAppOtp(fullPhone, email) {
     throw new Error(data.error || 'Failed to send WhatsApp OTP');
   }
 
-  // Also send OTP via Email channel (fire-and-forget, same code delivered to email)
+  // Also send OTP via Email channel (separate endpoint)
+  let emailToken = null;
   try {
-    await fetch('https://www.chatworks.chat/api/auth/phone/start', {
+    const emailResp = await fetch('https://www.chatworks.chat/api/auth/email/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        countryCode,
-        localPhone,
-        email,
-        channel: 'email',
-        service: 'chatworks',
-      }),
+      body: JSON.stringify({ email, service: 'chatworks' }),
     });
+    if (emailResp.ok) {
+      const emailData = await emailResp.json();
+      emailToken = emailData.token;
+    }
   } catch (_) {
     // Email delivery is best-effort; do not block login if it fails
   }
 
-  return data;
+  return { ...data, emailToken };
 }
 
-export async function verifyWhatsAppOtp({ token, code, phone }) {
-  const { countryCode, localPhone } = decomposePhone(phone);
-
+export async function verifyWhatsAppOtp({ token, emailToken, code, phone }) {
+  // Try WhatsApp token first
   const response = await fetch('https://www.chatworks.chat/api/auth/phone/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       token,
       code,
-      countryCode,
-      localPhone,
+      phone,
+      channel: 'whatsapp',
     }),
   });
 
   const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.error || 'Invalid verification code');
+  if (response.ok) {
+    return data;
   }
-  return data;
+
+  // If WhatsApp verification failed and we have an email token, try email verification
+  if (emailToken) {
+    const emailResp = await fetch('https://www.chatworks.chat/api/auth/email/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: emailToken, code }),
+    });
+    const emailData = await emailResp.json();
+    if (emailResp.ok) {
+      return emailData;
+    }
+  }
+
+  throw new Error(data.error || 'Invalid verification code');
 }
