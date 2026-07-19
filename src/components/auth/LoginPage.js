@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock } from 'lucide-react';
+import { Eye, EyeOff, Lock, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 
 const LoginPage = () => {
   const { t } = useLanguage();
-  const { login, changePassword, pendingChallenge } = useAuth();
+  const { login, changePassword, confirmMfa, pendingChallenge } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,8 +25,8 @@ const LoginPage = () => {
     setIsSubmitting(false);
     if (result.success) {
       navigate('/dashboard');
-    } else if (result.challenge === 'NEW_PASSWORD_REQUIRED') {
-      // Show new password form
+    } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
+      // Challenge state set in AuthContext
     } else {
       setError(result.error);
     }
@@ -44,8 +45,83 @@ const LoginPage = () => {
     }
   };
 
-  // Force password change screen
+  const handleMfaSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+    const result = await confirmMfa(mfaCode);
+    setIsSubmitting(false);
+    if (result.success) {
+      navigate('/dashboard');
+    } else {
+      setError(result.error);
+    }
+  };
+
+  // Handle pending challenges (Password Change or MFA)
   if (pendingChallenge) {
+    const isMfa = ['MFA_REQUIRED', 'SMS_MFA', 'TOTP_REQUIRED'].includes(pendingChallenge.challengeName);
+
+    if (isMfa) {
+      return (
+        <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-sm">
+            <div className="text-center mb-8">
+              <div className="flex items-center justify-center gap-2.5 mb-4">
+                <img src="https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/logo.png" alt="Tenant Billing" className="h-10" />
+                <span className="text-lg font-bold text-navy-800 tracking-tight">
+                  Tenant Billing
+                </span>
+              </div>
+              <h1 className="text-2xl font-extrabold text-navy-800">Two-Factor Authentication</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                {pendingChallenge.destination
+                  ? `Enter the code sent to ${pendingChallenge.destination}`
+                  : 'Enter the verification code sent to your registered phone number.'}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-2xl p-8 shadow-xl shadow-purple-100/30">
+              <div className="w-12 h-12 mx-auto mb-5 rounded-xl bg-purple-50 flex items-center justify-center">
+                <ShieldCheck size={24} className="text-purple-600" />
+              </div>
+              <form onSubmit={handleMfaSubmit}>
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-navy-800 mb-1.5 text-center">
+                    Verification Code
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={mfaCode}
+                    onChange={(e) => setMfaCode(e.target.value)}
+                    disabled={isSubmitting}
+                    placeholder="123456"
+                    className="w-full text-center tracking-[0.5em] text-xl font-mono px-4 py-3 rounded-xl border border-gray-200 text-navy-800 placeholder:text-gray-300 placeholder:tracking-normal bg-gray-50 focus:outline-none focus:border-purple-400 focus:bg-white focus:ring-2 focus:ring-purple-100 transition-all disabled:bg-gray-100"
+                  />
+                </div>
+
+                {error && (
+                  <div className="mb-4 px-4 py-2.5 bg-red-50 rounded-xl">
+                    <p className="text-xs text-red-600 font-medium">{error}</p>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={isSubmitting || mfaCode.length < 6}
+                  className="w-full py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full hover:bg-sunshine-500 hover:shadow-lg transition-all disabled:opacity-50 border-none cursor-pointer"
+                >
+                  {isSubmitting ? t('loading') : 'Verify & Sign In'}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
         <div className="w-full max-w-sm">

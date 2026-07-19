@@ -53,7 +53,70 @@ export function login(email, password) {
           userAttributes,
         });
       },
+      mfaRequired: (challengeName, challengeParameters) => {
+        resolve({
+          challengeName: challengeName || 'MFA_REQUIRED',
+          cognitoUser,
+          destination: challengeParameters ? challengeParameters.CODE_DELIVERY_DESTINATION : null,
+        });
+      },
+      totpRequired: (challengeName, challengeParameters) => {
+        resolve({
+          challengeName: challengeName || 'TOTP_REQUIRED',
+          cognitoUser,
+          challengeParameters,
+        });
+      },
+      mfaSetup: (challengeName, challengeParameters) => {
+        resolve({
+          challengeName: challengeName || 'MFA_SETUP',
+          cognitoUser,
+          challengeParameters,
+        });
+      },
+      selectMFAType: (challengeName, challengeParameters) => {
+        resolve({
+          challengeName: challengeName || 'SELECT_MFA_TYPE',
+          cognitoUser,
+          challengeParameters,
+        });
+      },
+      customChallenge: (challengeParameters) => {
+        resolve({
+          challengeName: 'CUSTOM_CHALLENGE',
+          cognitoUser,
+          challengeParameters,
+        });
+      },
     });
+  });
+}
+
+/**
+ * Complete MFA verification challenge (SMS_MFA or SOFTWARE_TOKEN_MFA).
+ */
+export function confirmMfaCode(cognitoUser, mfaCode, mfaType = 'SMS_MFA') {
+  return new Promise((resolve, reject) => {
+    cognitoUser.sendMFACode(mfaCode, {
+      onSuccess: (session) => {
+        const idToken = session.getIdToken().getJwtToken();
+        const payload = session.getIdToken().decodePayload();
+        resolve({
+          idToken,
+          user: {
+            id: payload.sub,
+            email: payload.email,
+            role: payload['custom:role'],
+            instanceId: payload['custom:instanceId'],
+            instanceName: payload['custom:instanceName'],
+            name: payload.email ? payload.email.split('@')[0] : 'User',
+          },
+        });
+      },
+      onFailure: (err) => {
+        reject(err);
+      },
+    }, mfaType);
   });
 }
 

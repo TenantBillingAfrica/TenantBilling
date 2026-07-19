@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, useEffect } fr
 import {
   login as cognitoLogin,
   completeNewPassword,
+  confirmMfaCode,
   logout as cognitoLogout,
   getCurrentSession,
 } from '../services/auth.service';
@@ -44,10 +45,14 @@ export const AuthProvider = ({ children }) => {
     try {
       const result = await cognitoLogin(email, password);
 
-      // Handle forced password change
-      if (result.challengeName === 'NEW_PASSWORD_REQUIRED') {
+      // Handle forced password change or MFA challenges
+      if (result.challengeName) {
         setPendingChallenge(result);
-        return { success: false, challenge: 'NEW_PASSWORD_REQUIRED' };
+        return {
+          success: false,
+          challenge: result.challengeName,
+          destination: result.destination,
+        };
       }
 
       localStorage.setItem('tb_id_token', result.idToken);
@@ -59,6 +64,24 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: err.message || 'Invalid email or password' };
     }
   }, []);
+
+  const confirmMfa = useCallback(async (mfaCode) => {
+    if (!pendingChallenge?.cognitoUser) {
+      return { success: false, error: 'No pending MFA challenge' };
+    }
+    try {
+      const mfaType = pendingChallenge.challengeName === 'TOTP_REQUIRED' ? 'SOFTWARE_TOKEN_MFA' : 'SMS_MFA';
+      const result = await confirmMfaCode(pendingChallenge.cognitoUser, mfaCode, mfaType);
+      localStorage.setItem('tb_id_token', result.idToken);
+      localStorage.setItem('tb_user', JSON.stringify(result.user));
+      setUser(result.user);
+      setIsAuthenticated(true);
+      setPendingChallenge(null);
+      return { success: true, user: result.user };
+    } catch (err) {
+      return { success: false, error: err.message || 'Invalid verification code' };
+    }
+  }, [pendingChallenge]);
 
   const changePassword = useCallback(async (newPassword) => {
     if (!pendingChallenge?.cognitoUser) {
@@ -92,6 +115,7 @@ export const AuthProvider = ({ children }) => {
       login,
       logout,
       changePassword,
+      confirmMfa,
       pendingChallenge,
     }}>
       {children}
