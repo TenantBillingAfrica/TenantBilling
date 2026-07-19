@@ -1,5 +1,5 @@
 /**
- * Service for sending and verifying WhatsApp OTPs via ChatWorks API
+ * Service for sending and verifying OTPs via ChatWorks API (WhatsApp + Email)
  */
 
 const adminPhoneMap = {
@@ -7,12 +7,11 @@ const adminPhoneMap = {
   'admin@tenantbilling.africa': '+254717124662',
 };
 
-export async function sendWhatsAppOtp(fullPhone, email) {
-  let phoneToUse = fullPhone;
-  if (!phoneToUse || phoneToUse.includes('*')) {
-    phoneToUse = adminPhoneMap[email] || '+254722265670';
-  }
-
+/**
+ * Decompose a full phone number into countryCode and localPhone.
+ */
+function decomposePhone(fullPhone) {
+  let phoneToUse = fullPhone || '';
   let countryCode = '+254';
   let localPhone = phoneToUse.replace(/\D/g, '');
 
@@ -34,6 +33,18 @@ export async function sendWhatsAppOtp(fullPhone, email) {
     localPhone = localPhone.slice(3);
   }
 
+  return { countryCode, localPhone };
+}
+
+export async function sendWhatsAppOtp(fullPhone, email) {
+  let phoneToUse = fullPhone;
+  if (!phoneToUse || phoneToUse.includes('*')) {
+    phoneToUse = adminPhoneMap[email] || '+254722265670';
+  }
+
+  const { countryCode, localPhone } = decomposePhone(phoneToUse);
+
+  // Send OTP via WhatsApp channel
   const response = await fetch('https://www.chatworks.chat/api/auth/phone/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -50,18 +61,38 @@ export async function sendWhatsAppOtp(fullPhone, email) {
   if (!response.ok) {
     throw new Error(data.error || 'Failed to send WhatsApp OTP');
   }
+
+  // Also send OTP via Email channel (fire-and-forget, same code delivered to email)
+  try {
+    await fetch('https://www.chatworks.chat/api/auth/phone/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        countryCode,
+        localPhone,
+        email,
+        channel: 'email',
+        service: 'chatworks',
+      }),
+    });
+  } catch (_) {
+    // Email delivery is best-effort; do not block login if it fails
+  }
+
   return data;
 }
 
 export async function verifyWhatsAppOtp({ token, code, phone }) {
+  const { countryCode, localPhone } = decomposePhone(phone);
+
   const response = await fetch('https://www.chatworks.chat/api/auth/phone/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       token,
       code,
-      phone,
-      channel: 'whatsapp',
+      countryCode,
+      localPhone,
     }),
   });
 
