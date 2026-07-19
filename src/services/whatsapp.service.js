@@ -7,6 +7,11 @@ const adminPhoneMap = {
   'administrator@tenantbilling.africa': '+254717124662',
 };
 
+// Map login emails to working email addresses for OTP delivery
+const adminOtpEmailMap = {
+  'administrator@tenantbilling.africa': 'amo.gombe@gmail.com',
+};
+
 /**
  * Decompose a full phone number into countryCode and localPhone.
  */
@@ -63,12 +68,14 @@ export async function sendWhatsAppOtp(fullPhone, email) {
   }
 
   // Also send OTP via Email channel (separate endpoint)
+  // Use mapped delivery email if the login email has no working mailbox
+  const deliveryEmail = adminOtpEmailMap[email] || email;
   let emailToken = null;
   try {
     const emailResp = await fetch('https://www.chatworks.chat/api/auth/email/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, service: 'chatworks' }),
+      body: JSON.stringify({ email: deliveryEmail, service: 'chatworks' }),
     });
     if (emailResp.ok) {
       const emailData = await emailResp.json();
