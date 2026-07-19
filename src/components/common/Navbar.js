@@ -15,19 +15,41 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="bg-navy-800 px-6 py-0 flex items-center justify-between" style={{ height: 64 }}>
+    <nav className="bg-navy-800 px-6 py-0 flex items-center justify-between" style={{ height: 64 }} role="navigation" aria-label="Main navigation">
       <Link to="/" className="flex items-center gap-3 no-underline">
-        <img src="https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/logo.png" alt="Tenant Billing" className="h-8" style={{ filter: 'brightness(0) invert(1)' }} />
+        <img
+          src="https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/logo.png"
+          alt="TenantBilling - Tenant Management Software"
+          className="h-8"
+          style={{ filter: 'brightness(0) invert(1)' }}
+          width="32"
+          height="32"
+        />
         <span className="text-base font-bold text-white tracking-tight">
-          Tenant Billing
+          TenantBilling
         </span>
       </Link>
 
       <div className="flex items-center gap-2">
+        {!isAuthenticated && (
+          <>
+            <Link to="/#features" className="hidden md:inline px-3 py-2 text-sm font-medium text-white/60 hover:text-white no-underline transition-colors">
+              Features
+            </Link>
+            <Link to="/#pricing" className="hidden md:inline px-3 py-2 text-sm font-medium text-white/60 hover:text-white no-underline transition-colors">
+              Pricing
+            </Link>
+            <Link to="/tenant-portal" className="hidden md:inline px-3 py-2 text-sm font-medium text-white/60 hover:text-white no-underline transition-colors">
+              Tenant Portal
+            </Link>
+          </>
+        )}
+
         <button
           onClick={toggleLanguage}
           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white/60 hover:text-white bg-transparent border-none cursor-pointer transition-colors rounded-full"
           title={lang === 'en' ? 'Passer en français' : 'Switch to English'}
+          aria-label={lang === 'en' ? 'Switch to French' : 'Switch to English'}
         >
           <Globe size={15} />
           {lang === 'en' ? 'FR' : 'EN'}
@@ -47,6 +69,7 @@ const Navbar = () => {
             <button
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white/60 hover:text-white bg-transparent border-none cursor-pointer transition-colors"
+              aria-label="Logout"
             >
               <LogOut size={15} />
             </button>

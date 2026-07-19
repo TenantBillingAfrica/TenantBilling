@@ -45,8 +45,13 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-warm-50">
+      {/* Skip to main content link for accessibility */}
+      <a href="#features" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-navy-800 focus:rounded">
+        Skip to main content
+      </a>
+
       {/* Hero */}
-      <section className="relative overflow-hidden bg-navy-800">
+      <section id="hero" className="relative overflow-hidden bg-navy-800">
         {/* Decorative blobs */}
         <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full opacity-20"
           style={{ background: 'radial-gradient(circle, #fbbf24 0%, transparent 70%)' }} />
@@ -109,7 +114,7 @@ const HomePage = () => {
       </section>
 
       {/* Stats strip */}
-      <section className="py-16 bg-warm-50">
+      <section id="stats" className="py-16 bg-warm-50">
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {STATS.map((stat, i) => {
@@ -129,7 +134,7 @@ const HomePage = () => {
       </section>
 
       {/* Happy Tenants showcase */}
-      <section className="py-20 bg-white">
+      <section id="about" className="py-20 bg-white">
         <div className="max-w-5xl mx-auto px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             {/* Image grid */}
@@ -138,15 +143,21 @@ const HomePage = () => {
                 <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
                   <img
                     src={`${S3_BASE}/happy-family-moving.jpg`}
-                    alt="Happy family moving in"
+                    alt="Happy African family moving into rental property managed with TenantBilling software"
                     className="w-full h-64 object-cover hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    width="400"
+                    height="256"
                   />
                 </div>
                 <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
                   <img
                     src={`${S3_BASE}/happy-tenants-handshake.jpg`}
-                    alt="Tenants signing lease"
+                    alt="Landlord and tenant shaking hands after signing lease agreement"
                     className="w-full h-40 object-cover hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    width="400"
+                    height="160"
                   />
                 </div>
               </div>
@@ -154,8 +165,11 @@ const HomePage = () => {
                 <div className="overflow-hidden rounded-3xl shadow-xl shadow-purple-100/50">
                   <img
                     src={`${S3_BASE}/happy-couple-newHome.webp`}
-                    alt="Happy couple in new home"
+                    alt="Happy couple in their new rental home using tenant management portal"
                     className="w-full h-72 object-cover hover:scale-105 transition-transform duration-500"
+                    loading="lazy"
+                    width="400"
+                    height="288"
                   />
                 </div>
               </div>
@@ -192,7 +206,7 @@ const HomePage = () => {
       </section>
 
       {/* Features */}
-      <section className="py-20 bg-warm-50">
+      <section id="features" className="py-20 bg-warm-50">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
             <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-lavender-100 text-navy-700 rounded-full text-sm font-semibold mb-4">
@@ -231,7 +245,7 @@ const HomePage = () => {
       </section>
 
       {/* Countries */}
-      <section className="py-20 bg-lavender-50">
+      <section id="countries" className="py-20 bg-lavender-50">
         <div className="max-w-5xl mx-auto px-6 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-1.5 bg-white text-navy-700 rounded-full text-sm font-semibold mb-4 shadow-sm">
             <Globe size={14} />
@@ -248,7 +262,7 @@ const HomePage = () => {
                 className="flex flex-col items-center gap-2 px-5 py-4 bg-white rounded-2xl border border-purple-100 hover:border-purple-300 hover:shadow-lg hover:shadow-purple-100/40 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer"
                 style={{ minWidth: 100 }}
               >
-                <img src={country.flagImg} alt={country.nameEn} className="w-10 h-10 object-contain rounded" />
+                <img src={country.flagImg} alt={`${country.nameEn} flag - tenant management available`} className="w-10 h-10 object-contain rounded" loading="lazy" width="40" height="40" />
                 <span className="text-xs font-semibold text-navy-700 text-center leading-tight">
                   {lang === 'fr' ? country.nameFr : country.nameEn}
                 </span>
@@ -259,7 +273,7 @@ const HomePage = () => {
       </section>
 
       {/* Pricing */}
-      <section className="py-24 bg-navy-800 relative overflow-hidden">
+      <section id="pricing" className="py-24 bg-navy-800 relative overflow-hidden">
         {/* Decorative blobs */}
         <div className="absolute top-[-20%] right-[10%] w-[400px] h-[400px] rounded-full opacity-15"
           style={{ background: 'radial-gradient(circle, #fbbf24 0%, transparent 70%)' }} />
@@ -341,7 +355,7 @@ const HomePage = () => {
       </section>
 
       {/* Payment Providers */}
-      <section className="py-16 bg-warm-50">
+      <section id="payments" className="py-16 bg-warm-50">
         <div className="max-w-5xl mx-auto px-6 text-center">
           <p className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-8">
             {t('payments_badge')}
@@ -351,8 +365,11 @@ const HomePage = () => {
               <div key={provider.name} className="flex flex-col items-center gap-2">
                 <img
                   src={provider.logo}
-                  alt={provider.name}
+                  alt={`${provider.name} mobile money payment integration`}
                   className="h-12 w-auto object-contain grayscale hover:grayscale-0 opacity-70 hover:opacity-100 transition-all duration-300"
+                  loading="lazy"
+                  width="48"
+                  height="48"
                 />
                 <span className="text-[10px] text-gray-400 font-medium">{provider.name}</span>
               </div>

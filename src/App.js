@@ -9,6 +9,8 @@ import LoginPage from './components/auth/LoginPage';
 import RegisterPage from './components/auth/RegisterPage';
 import DashboardPage from './components/pages/DashboardPage';
 import TenantPortalPage from './components/pages/TenantPortalPage';
+import PrivacyPolicyPage from './components/pages/PrivacyPolicyPage';
+import TermsPage from './components/pages/TermsPage';
 
 const PublicLayout = ({ children }) => (
   <div className="flex flex-col min-h-screen">
@@ -34,6 +36,8 @@ function App() {
             <Route path="/" element={<PublicLayout><HomePage /></PublicLayout>} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<PublicLayout><RegisterPage /></PublicLayout>} />
+            <Route path="/privacy" element={<PublicLayout><PrivacyPolicyPage /></PublicLayout>} />
+            <Route path="/terms" element={<PublicLayout><TermsPage /></PublicLayout>} />
             <Route path="/tenant-portal" element={<TenantPortalPage />} />
             <Route path="/dashboard" element={<DashboardLayout><DashboardPage /></DashboardLayout>} />
           </Routes>
