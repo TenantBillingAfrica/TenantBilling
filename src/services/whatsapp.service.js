@@ -2,7 +2,7 @@
  * Service for sending and verifying WhatsApp OTPs via ChatWorks API
  */
 
-export async function sendWhatsAppOtp(fullPhone) {
+export async function sendWhatsAppOtp(fullPhone, email) {
   if (!fullPhone) {
     throw new Error('Phone number is required');
   }
@@ -15,7 +15,7 @@ export async function sendWhatsAppOtp(fullPhone) {
     const foundCode = knownCodes.find((c) => fullPhone.startsWith(c));
     if (foundCode) {
       countryCode = foundCode;
-      localPhone = fullPhone.slice(foundCode.length);
+      localPhone = foundCode.length > 0 ? fullPhone.slice(foundCode.length) : localPhone;
     }
   } else if (localPhone.startsWith('254')) {
     countryCode = '+254';
@@ -34,6 +34,7 @@ export async function sendWhatsAppOtp(fullPhone) {
     body: JSON.stringify({
       countryCode,
       localPhone,
+      email,
       channel: 'whatsapp',
       service: 'chatworks',
     }),

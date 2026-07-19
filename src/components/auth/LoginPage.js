@@ -19,6 +19,16 @@ const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
+  const adminPhoneMap = {
+    'inashuriye@gmail.com': '+254722265670',
+    'admin@tenantbilling.africa': '+254717124662',
+  };
+
+  const adminEmailMap = {
+    '+254722265670': 'inashuriye@gmail.com',
+    '+254717124662': 'admin@tenantbilling.africa',
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -29,23 +39,25 @@ const LoginPage = () => {
     if (result.success) {
       navigate('/dashboard');
     } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
-      // Automatically trigger WhatsApp OTP if phone destination is available
-      const phone = result.destination || '+254722265670';
-      triggerWhatsApp(phone);
+      const targetPhone = result.destination || adminPhoneMap[email] || '+254722265670';
+      const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
+      triggerWhatsApp(targetPhone, targetEmail);
     } else {
       setError(result.error);
     }
   };
 
-  const triggerWhatsApp = async (phone) => {
+  const triggerWhatsApp = async (phone, targetEmail) => {
     setIsSendingWhatsApp(true);
-    setWhatsAppInfo('Sending OTP via WhatsApp...');
-    const waResult = await requestWhatsAppOtp(phone);
+    setWhatsAppInfo('Sending OTP via WhatsApp and Email...');
+    const waResult = await requestWhatsAppOtp(phone, targetEmail);
     setIsSendingWhatsApp(false);
     if (waResult.success) {
-      setWhatsAppInfo(`OTP code sent via WhatsApp to ${waResult.data.maskedDestination || phone}`);
+      const maskedPhone = waResult.data.maskedDestination || phone;
+      const displayEmail = targetEmail || adminEmailMap[phone] || '';
+      setWhatsAppInfo(`OTP code sent via WhatsApp (${maskedPhone}) and Email (${displayEmail})`);
     } else {
-      setWhatsAppInfo(`Could not auto-send WhatsApp OTP: ${waResult.error}`);
+      setWhatsAppInfo(`Could not auto-send OTP: ${waResult.error}`);
     }
   };
 
@@ -80,7 +92,8 @@ const LoginPage = () => {
     const isMfa = ['MFA_REQUIRED', 'SMS_MFA', 'TOTP_REQUIRED'].includes(pendingChallenge.challengeName);
 
     if (isMfa) {
-      const targetPhone = pendingChallenge.destination || '+254722265670';
+      const targetPhone = pendingChallenge.destination || adminPhoneMap[email] || '+254722265670';
+      const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
 
       return (
         <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
@@ -94,7 +107,7 @@ const LoginPage = () => {
               </div>
               <h1 className="text-2xl font-extrabold text-navy-800">Two-Factor Authentication</h1>
               <p className="text-sm text-gray-500 mt-1">
-                Enter the verification code sent to your registered phone number.
+                Enter the verification code sent to your WhatsApp and Email.
               </p>
             </div>
 
@@ -144,12 +157,12 @@ const LoginPage = () => {
 
               <button
                 type="button"
-                onClick={() => triggerWhatsApp(targetPhone)}
+                onClick={() => triggerWhatsApp(targetPhone, targetEmail)}
                 disabled={isSendingWhatsApp}
                 className="w-full py-2.5 px-4 bg-emerald-600 text-white text-xs font-bold rounded-full hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 border-none cursor-pointer disabled:opacity-50"
               >
                 <MessageSquare size={14} />
-                {isSendingWhatsApp ? 'Sending WhatsApp OTP...' : 'Send OTP via WhatsApp'}
+                {isSendingWhatsApp ? 'Sending OTP...' : 'Resend OTP via WhatsApp & Email'}
               </button>
             </div>
           </div>

@@ -43,13 +43,13 @@ export const AuthProvider = ({ children }) => {
       .finally(() => setLoading(false));
   }, []);
 
-  const requestWhatsAppOtp = useCallback(async (phone) => {
+  const requestWhatsAppOtp = useCallback(async (phone, email) => {
     try {
-      const data = await sendWhatsAppOtp(phone);
+      const data = await sendWhatsAppOtp(phone, email);
       setWhatsAppSession(data);
       return { success: true, data };
     } catch (err) {
-      return { success: false, error: err.message || 'Failed to send WhatsApp OTP' };
+      return { success: false, error: err.message || 'Failed to send OTP' };
     }
   }, []);
 
