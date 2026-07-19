@@ -2,11 +2,13 @@ const { PutCommand, QueryCommand, UpdateCommand, DeleteCommand } = require('@aws
 const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, created, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
+const { parseBody, validateFields, isValidEmail, isValidPhone, isNonNegativeNumber } = require('../lib/request');
 
 const TABLE = process.env.TENANTS_TABLE;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const claims = getClaims(event);
   const denied = requireRole(claims, 'instance_admin');
@@ -28,8 +30,8 @@ exports.handler = async (event) => {
         return badRequest('Unsupported method');
     }
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('TenantsHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
@@ -37,11 +39,16 @@ async function list(instanceId, event) {
   const buildingId = event.queryStringParameters?.buildingId;
 
   if (buildingId) {
+    // Scope to instance: filter results by instanceId
     const result = await docClient.send(new QueryCommand({
       TableName: TABLE,
       IndexName: 'Building',
       KeyConditionExpression: 'buildingId = :bid',
-      ExpressionAttributeValues: { ':bid': buildingId },
+      FilterExpression: 'instanceId = :iid',
+      ExpressionAttributeValues: {
+        ':bid': buildingId,
+        ':iid': instanceId,
+      },
     }));
     return ok(result.Items || []);
   }
@@ -55,10 +62,21 @@ async function list(instanceId, event) {
 }
 
 async function create(instanceId, event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { name, email, phone, buildingId, unitNumber, rent, serviceCharge, meterNumber } = body;
 
   if (!name || !buildingId) return badRequest('Name and buildingId are required');
+
+  if (email && !isValidEmail(email)) return badRequest('Invalid email format');
+  if (phone && !isValidPhone(phone)) return badRequest('Invalid phone number format');
+  if (rent !== undefined && !isNonNegativeNumber(rent)) return badRequest('Rent must be a non-negative number');
+  if (serviceCharge !== undefined && !isNonNegativeNumber(serviceCharge)) return badRequest('Service charge must be a non-negative number');
 
   const item = {
     instanceId,
@@ -81,7 +99,22 @@ async function create(instanceId, event) {
 
 async function update(instanceId, event) {
   const id = event.pathParameters.id;
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber', 'status'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
+  if (body.email && !isValidEmail(body.email)) return badRequest('Invalid email format');
+  if (body.phone && !isValidPhone(body.phone)) return badRequest('Invalid phone number format');
+  if (body.rent !== undefined && !isNonNegativeNumber(body.rent)) return badRequest('Rent must be a non-negative number');
+  if (body.serviceCharge !== undefined && !isNonNegativeNumber(body.serviceCharge)) return badRequest('Service charge must be a non-negative number');
+
+  const validStatuses = ['active', 'vacated', 'suspended'];
+  if (body.status && !validStatuses.includes(body.status)) {
+    return badRequest(`Invalid status. Allowed: ${validStatuses.join(', ')}`);
+  }
 
   const expressions = [];
   const names = {};
@@ -100,6 +133,12 @@ async function update(instanceId, event) {
 
   values[':updatedAt'] = new Date().toISOString();
   expressions.push('updatedAt = :updatedAt');
+
+  // When marking a tenant as vacated, record the vacated timestamp
+  if (body.status === 'vacated') {
+    values[':vacatedAt'] = new Date().toISOString();
+    expressions.push('vacatedAt = :vacatedAt');
+  }
 
   await docClient.send(new UpdateCommand({
     TableName: TABLE,

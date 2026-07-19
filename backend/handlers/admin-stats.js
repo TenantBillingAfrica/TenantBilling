@@ -1,9 +1,12 @@
 const { ScanCommand } = require('@aws-sdk/lib-dynamodb');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, badRequest, serverError } = require('../lib/response');
+
+const SCAN_LIMIT = 1000;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const claims = getClaims(event);
   const denied = requireRole(claims, 'system_admin');
   if (denied) return denied;
@@ -19,17 +22,17 @@ exports.handler = async (event) => {
     }
     return badRequest('Unknown route');
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('AdminStatsHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
 async function getStats() {
   const [applications, users, tenants, buildings] = await Promise.all([
-    scan(process.env.APPLICATIONS_TABLE),
-    scan(process.env.USERS_TABLE),
-    scan(process.env.TENANTS_TABLE),
-    scan(process.env.BUILDINGS_TABLE),
+    scanLimited(process.env.APPLICATIONS_TABLE),
+    scanLimited(process.env.USERS_TABLE),
+    scanLimited(process.env.TENANTS_TABLE),
+    scanLimited(process.env.BUILDINGS_TABLE),
   ]);
 
   const activeInstances = applications.filter(a => a.status === 'approved');
@@ -51,8 +54,8 @@ async function getStats() {
 
 async function getPnL() {
   const [invoices, payments] = await Promise.all([
-    scan(process.env.INVOICES_TABLE),
-    scan(process.env.PAYMENTS_TABLE),
+    scanLimited(process.env.INVOICES_TABLE),
+    scanLimited(process.env.PAYMENTS_TABLE),
   ]);
 
   const totalBilled = invoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
@@ -85,16 +88,21 @@ async function getPnL() {
   });
 }
 
-async function scan(tableName) {
+/**
+ * Scan with a hard limit to prevent loading unbounded data.
+ * Paginates up to SCAN_LIMIT items maximum.
+ */
+async function scanLimited(tableName) {
   const items = [];
   let lastKey;
   do {
     const result = await docClient.send(new ScanCommand({
       TableName: tableName,
       ExclusiveStartKey: lastKey,
+      Limit: SCAN_LIMIT,
     }));
     items.push(...(result.Items || []));
     lastKey = result.LastEvaluatedKey;
-  } while (lastKey);
-  return items;
+  } while (lastKey && items.length < SCAN_LIMIT);
+  return items.slice(0, SCAN_LIMIT);
 }

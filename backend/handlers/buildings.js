@@ -2,11 +2,13 @@ const { PutCommand, QueryCommand, UpdateCommand, DeleteCommand } = require('@aws
 const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, created, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
+const { parseBody, validateFields, isNonNegativeNumber } = require('../lib/request');
 
 const TABLE = process.env.BUILDINGS_TABLE;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const claims = getClaims(event);
   const denied = requireRole(claims, 'instance_admin');
@@ -28,8 +30,8 @@ exports.handler = async (event) => {
         return badRequest('Unsupported method');
     }
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('BuildingsHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
@@ -43,10 +45,25 @@ async function list(instanceId) {
 }
 
 async function create(instanceId, event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'address', 'units', 'paymentMethod'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { name, address, units, paymentMethod } = body;
 
   if (!name) return badRequest('Building name is required');
+
+  if (units !== undefined && !isNonNegativeNumber(units)) {
+    return badRequest('Units must be a non-negative number');
+  }
+
+  const validPaymentMethods = ['mobile_money', 'bank_transfer', 'cash'];
+  if (paymentMethod && !validPaymentMethods.includes(paymentMethod)) {
+    return badRequest(`Invalid payment method. Allowed: ${validPaymentMethods.join(', ')}`);
+  }
 
   const item = {
     instanceId,
@@ -65,7 +82,16 @@ async function create(instanceId, event) {
 
 async function update(instanceId, event) {
   const id = event.pathParameters.id;
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'address', 'units', 'paymentMethod', 'status'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
+  if (body.units !== undefined && !isNonNegativeNumber(body.units)) {
+    return badRequest('Units must be a non-negative number');
+  }
 
   const expressions = [];
   const names = {};

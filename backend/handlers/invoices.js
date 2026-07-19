@@ -2,13 +2,15 @@ const { PutCommand, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamo
 const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, created, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
+const { parseBody, validateFields, isNonNegativeNumber } = require('../lib/request');
 
 const TABLE = process.env.INVOICES_TABLE;
 const TENANTS_TABLE = process.env.TENANTS_TABLE;
 const METER_READINGS_TABLE = process.env.METER_READINGS_TABLE;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const path = event.rawPath;
   const claims = getClaims(event);
@@ -29,8 +31,8 @@ exports.handler = async (event) => {
     }
     return badRequest('Unsupported route');
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('InvoicesHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
@@ -70,10 +72,28 @@ async function list(instanceId, event) {
 }
 
 async function generateBatch(instanceId, event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['month', 'year', 'waterRate'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { month, year, waterRate } = body;
 
   if (!month || !year) return badRequest('Month and year are required');
+
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return badRequest('Month must be an integer between 1 and 12');
+  }
+
+  if (!Number.isInteger(year) || year < 2020 || year > 2100) {
+    return badRequest('Year must be a valid year');
+  }
+
+  if (waterRate !== undefined && !isNonNegativeNumber(waterRate)) {
+    return badRequest('Water rate must be a non-negative number');
+  }
 
   // Get all tenants for this instance
   const tenantsResult = await docClient.send(new QueryCommand({
@@ -135,7 +155,12 @@ async function generateBatch(instanceId, event) {
 
 async function update(instanceId, event) {
   const id = event.pathParameters.id;
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['status', 'notes', 'dueDate'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
 
   const expressions = [];
   const names = {};

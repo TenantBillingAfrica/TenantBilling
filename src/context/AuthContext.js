@@ -10,11 +10,6 @@ import { sendWhatsAppOtp, verifyWhatsAppOtp } from '../services/whatsapp.service
 
 const AuthContext = createContext();
 
-const adminPhoneMap = {
-  'inashuriye@gmail.com': '+254722265670',
-  'administrator@tenantbilling.africa': '+254717124662',
-};
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem('tb_user');
@@ -73,20 +68,20 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Enforce 2FA for system admin accounts
-      const isSystemAdmin = result.user?.role === 'system_admin' || ['inashuriye@gmail.com', 'administrator@tenantbilling.africa'].includes(email);
+      const isSystemAdmin = result.user?.role === 'system_admin';
       if (isSystemAdmin) {
-        const targetPhone = adminPhoneMap[email] || '+254722265670';
+        // Phone resolved server-side via /auth/otp-config
         setPendingChallenge({
           challengeName: 'MFA_REQUIRED',
           user: result.user,
           idToken: result.idToken,
           email,
-          destination: targetPhone,
+          destination: result.user?.phone || '',
         });
         return {
           success: false,
           challenge: 'MFA_REQUIRED',
-          destination: targetPhone,
+          destination: result.user?.phone || '',
           email,
         };
       }
@@ -109,7 +104,7 @@ export const AuthProvider = ({ children }) => {
     try {
       // 1. If ChatWorks OTP session exists, always verify against ChatWorks first
       if (whatsAppSession?.token) {
-        const targetPhone = pendingChallenge.destination || adminPhoneMap[pendingChallenge.email] || '+254722265670';
+        const targetPhone = pendingChallenge.destination || '';
         await verifyWhatsAppOtp({
           token: whatsAppSession.token,
           emailToken: whatsAppSession.emailToken || null,

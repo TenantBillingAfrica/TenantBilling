@@ -3,12 +3,14 @@ const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
 const { initiateCollection } = require('../lib/payments');
-const { ok, created, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
+const { parseBody, validateFields, isValidPhone, isNonNegativeNumber, verifyWebhookSignature } = require('../lib/request');
 
 const TABLE = process.env.PAYMENTS_TABLE;
 const INVOICES_TABLE = process.env.INVOICES_TABLE;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const path = event.rawPath;
 
@@ -35,8 +37,8 @@ exports.handler = async (event) => {
 
     return badRequest('Unsupported route');
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('PaymentsHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
@@ -63,11 +65,25 @@ async function list(instanceId, event) {
 }
 
 async function initiate(instanceId, event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['invoiceId', 'phone', 'amount', 'currency'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { invoiceId, phone, amount, currency } = body;
 
   if (!invoiceId || !phone || !amount) {
     return badRequest('invoiceId, phone, and amount are required');
+  }
+
+  if (!isValidPhone(phone)) {
+    return badRequest('Invalid phone number format');
+  }
+
+  if (!isNonNegativeNumber(amount) || amount <= 0) {
+    return badRequest('Amount must be a positive number');
   }
 
   const transactionId = uuid();
@@ -111,7 +127,19 @@ async function initiate(instanceId, event) {
 }
 
 async function handleCallback(event) {
-  const body = JSON.parse(event.body || '{}');
+  // Verify webhook signature
+  const signature = event.headers?.['x-signature'] || event.headers?.['X-Signature'] || '';
+  const rawBody = event.body || '';
+  const apiToken = process.env.CHATWORKS_API_TOKEN;
+
+  if (!verifyWebhookSignature(rawBody, signature, apiToken)) {
+    console.error('Payment callback: invalid webhook signature');
+    return badRequest('Invalid webhook signature');
+  }
+
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
   const { depositId, status } = body;
 
   if (!depositId) return badRequest('depositId is required');
@@ -142,7 +170,7 @@ async function handleCallback(event) {
     },
   }));
 
-  // If completed, mark invoice as paid
+  // If completed, mark invoice as paid and send receipt
   if (newStatus === 'completed') {
     await docClient.send(new UpdateCommand({
       TableName: INVOICES_TABLE,
@@ -155,6 +183,69 @@ async function handleCallback(event) {
         ':pid': payment.id,
       },
     }));
+
+    // Send payment receipt notification via WhatsApp (PDF) and Email (PDF)
+    try {
+      const { sendPaymentReceipt } = require('../lib/notifications');
+      const TENANTS_TABLE = process.env.TENANTS_TABLE;
+      const BUILDINGS_TABLE = process.env.BUILDINGS_TABLE;
+
+      if (TENANTS_TABLE) {
+        const invoiceResult = await docClient.send(new GetCommand({
+          TableName: INVOICES_TABLE,
+          Key: { instanceId: payment.instanceId, id: payment.invoiceId },
+        }));
+        const invoice = invoiceResult.Item;
+
+        if (invoice) {
+          // Get tenant details for email and building context
+          let tenant = null;
+          if (invoice.tenantId) {
+            const tenantResult = await docClient.send(new QueryCommand({
+              TableName: TENANTS_TABLE,
+              KeyConditionExpression: 'instanceId = :iid AND id = :tid',
+              ExpressionAttributeValues: {
+                ':iid': payment.instanceId,
+                ':tid': invoice.tenantId,
+              },
+            }));
+            tenant = (tenantResult.Items || [])[0];
+          }
+
+          // Get building name
+          let buildingName = '';
+          if (tenant?.buildingId && BUILDINGS_TABLE) {
+            const buildingResult = await docClient.send(new QueryCommand({
+              TableName: BUILDINGS_TABLE,
+              KeyConditionExpression: 'instanceId = :iid AND id = :bid',
+              ExpressionAttributeValues: {
+                ':iid': payment.instanceId,
+                ':bid': tenant.buildingId,
+              },
+            }));
+            const building = (buildingResult.Items || [])[0];
+            buildingName = building?.name || '';
+          }
+
+          await sendPaymentReceipt({
+            tenantName: tenant?.name || invoice.tenantName || 'Tenant',
+            phone: payment.phone || tenant?.phone,
+            email: tenant?.email,
+            amount: payment.amount,
+            currency: payment.currency || 'KES',
+            period: invoice.period,
+            transactionId: payment.transactionId,
+            paidAt: new Date().toISOString(),
+            instanceName: 'Property Manager',
+            unitNumber: tenant?.unitNumber,
+            buildingName,
+            invoiceId: payment.invoiceId,
+          });
+        }
+      }
+    } catch (receiptErr) {
+      console.error('Failed to send payment receipt:', receiptErr);
+    }
   }
 
   return ok({ message: 'Callback processed', status: newStatus });

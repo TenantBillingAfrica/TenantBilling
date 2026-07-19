@@ -1,16 +1,12 @@
 /**
  * Service for sending and verifying OTPs via ChatWorks API (WhatsApp + Email)
+ *
+ * Admin phone numbers and email mappings are resolved server-side.
+ * The frontend only passes the authenticated user's email; the backend
+ * returns the appropriate phone/email for OTP delivery.
  */
 
-const adminPhoneMap = {
-  'inashuriye@gmail.com': '+254722265670',
-  'administrator@tenantbilling.africa': '+254717124662',
-};
-
-// Map login emails to working email addresses for OTP delivery
-const adminOtpEmailMap = {
-  'administrator@tenantbilling.africa': 'amo.gombe@gmail.com',
-};
+import config from '../config';
 
 /**
  * Decompose a full phone number into countryCode and localPhone.
@@ -41,10 +37,42 @@ function decomposePhone(fullPhone) {
   return { countryCode, localPhone };
 }
 
+/**
+ * Fetch OTP routing config from the backend for the given email.
+ * Returns { phone, deliveryEmail } or falls back to provided values.
+ */
+async function fetchOtpConfig(email) {
+  try {
+    const token = localStorage.getItem('tb_id_token');
+    const resp = await fetch(`${config.apiUrl}/auth/otp-config?email=${encodeURIComponent(email)}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (resp.ok) {
+      return await resp.json();
+    }
+  } catch (_) {
+    // Fall through to use provided phone/email directly
+  }
+  return null;
+}
+
 export async function sendWhatsAppOtp(fullPhone, email) {
+  // Try to resolve phone/email from backend config
+  const otpConfig = await fetchOtpConfig(email);
   let phoneToUse = fullPhone;
+  let deliveryEmail = email;
+
+  if (otpConfig) {
+    if (otpConfig.phone) phoneToUse = otpConfig.phone;
+    if (otpConfig.deliveryEmail) deliveryEmail = otpConfig.deliveryEmail;
+  }
+
   if (!phoneToUse || phoneToUse.includes('*')) {
-    phoneToUse = adminPhoneMap[email] || '+254722265670';
+    // If no phone available and no backend config, fail gracefully
+    if (!otpConfig?.phone) {
+      throw new Error('Unable to resolve phone number for OTP delivery. Please contact support.');
+    }
+    phoneToUse = otpConfig.phone;
   }
 
   const { countryCode, localPhone } = decomposePhone(phoneToUse);
@@ -56,7 +84,7 @@ export async function sendWhatsAppOtp(fullPhone, email) {
     body: JSON.stringify({
       countryCode,
       localPhone,
-      email,
+      email: deliveryEmail,
       channel: 'whatsapp',
       service: 'chatworks',
     }),
@@ -68,8 +96,6 @@ export async function sendWhatsAppOtp(fullPhone, email) {
   }
 
   // Also send OTP via Email channel (separate endpoint)
-  // Use mapped delivery email if the login email has no working mailbox
-  const deliveryEmail = adminOtpEmailMap[email] || email;
   let emailToken = null;
   try {
     const emailResp = await fetch('https://www.chatworks.chat/api/auth/email/start', {

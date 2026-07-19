@@ -20,6 +20,7 @@ Globals:
         CHATWORKS_API_TOKEN: '1c3cfaa9-5f83-4c77-a604-bd280c242d66'
         CHATWORKS_COLLECTIONS_URL: 'https://api.chatworks.chat/collections'
         CHATWORKS_CALLBACK_URL: 'https://www.chatworks.chat/api/pawapay/callback'
+        SES_FROM_EMAIL: 'invoices@tenantbilling.africa'
 
 Parameters:
   CognitoDomain:
@@ -69,7 +70,6 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
-        - ALLOW_USER_PASSWORD_AUTH
       PreventUserExistenceErrors: ENABLED
 
   # ─── API Gateway ───────────────────────────────────────────
@@ -360,6 +360,21 @@ Resources:
       Principal: cognito-idp.amazonaws.com
       SourceArn: !GetAtt UserPool.Arn
 
+  # OTP Config
+  OtpConfigFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Auth-OtpConfig
+      Handler: handlers/auth/otp-config.handler
+      CodeUri: .
+      Events:
+        GetConfig:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /auth/otp-config
+            Method: GET
+
   # Applications
   ApplicationsFunction:
     Type: AWS::Serverless::Function
@@ -582,6 +597,16 @@ Resources:
             TableName: !Ref PaymentsTable
         - DynamoDBCrudPolicy:
             TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendRawEmail
+                - ses:SendEmail
+              Resource: '*'
       Events:
         List:
           Type: HttpApi
@@ -661,6 +686,175 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/pnl
             Method: GET
+
+  # Tenant Self-Service Portal (public - OTP authenticated)
+  TenantPortalFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-TenantPortal
+      Handler: handlers/tenant-statements.handler
+      CodeUri: .
+      Timeout: 30
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PaymentsTable
+      Events:
+        RequestOtp:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenant-portal/request-otp
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        VerifyOtp:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenant-portal/verify-otp
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        Statement:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenant-portal/statement
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
+  # Notifications (manual triggers from admin dashboard)
+  NotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Notifications
+      Handler: handlers/notifications.handler
+      CodeUri: .
+      Timeout: 120
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StaffTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeterReadingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendRawEmail
+                - ses:SendEmail
+              Resource: '*'
+      Events:
+        SendInvoices:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /notifications/send-invoices
+            Method: POST
+        SendReminders:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /notifications/send-reminders
+            Method: POST
+        SendMeterReminders:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /notifications/send-meter-reminders
+            Method: POST
+
+  # Scheduled: Auto-generate invoices on 1st of each month at 6am EAT
+  ScheduledBillingFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-ScheduledBilling
+      Handler: handlers/scheduled.generateAndSendInvoices
+      CodeUri: .
+      Timeout: 300
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeterReadingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendRawEmail
+                - ses:SendEmail
+              Resource: '*'
+      Events:
+        MonthlyBilling:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 3 1 * ? *)
+            Description: Generate and send invoices on 1st of each month (6am EAT)
+            Enabled: true
+
+  # Scheduled: Payment reminders every 3 days after the 7th
+  ScheduledRemindersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-ScheduledReminders
+      Handler: handlers/scheduled.sendPaymentReminders
+      CodeUri: .
+      Timeout: 300
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InvoicesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+      Events:
+        PaymentReminders:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 7,10,13,16,19,22,25,28 * ? *)
+            Description: Send payment reminders every 3 days starting from 7th
+            Enabled: true
+
+  # Scheduled: Meter reading reminders on 25th of each month
+  ScheduledMeterRemindersFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-ScheduledMeterReminders
+      Handler: handlers/scheduled.sendMeterReadingReminders
+      CodeUri: .
+      Timeout: 300
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ApplicationsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TenantsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref StaffTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MeterReadingsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
+      Events:
+        MeterReminders:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 6 25 * ? *)
+            Description: Remind meter readers on 25th of each month
+            Enabled: true
 
 Outputs:
   ApiUrl:

@@ -19,22 +19,6 @@ const LoginPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState(false);
 
-  const adminPhoneMap = {
-    'inashuriye@gmail.com': '+254722265670',
-    'administrator@tenantbilling.africa': '+254717124662',
-  };
-
-  const adminEmailMap = {
-    '+254722265670': 'inashuriye@gmail.com',
-    '+254717124662': 'administrator@tenantbilling.africa',
-  };
-
-  const resolvePhone = (dest, userEmail) => {
-    if (userEmail && adminPhoneMap[userEmail]) return adminPhoneMap[userEmail];
-    if (dest && !dest.includes('*')) return dest;
-    return '+254722265670';
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -45,9 +29,8 @@ const LoginPage = () => {
     if (result.success) {
       navigate('/dashboard');
     } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
-      const targetPhone = resolvePhone(result.destination, email);
-      const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
-      triggerWhatsApp(targetPhone, targetEmail);
+      // Phone/email resolution handled server-side via whatsapp.service.js
+      triggerWhatsApp(result.destination || '', result.email || email);
     } else {
       setError(result.error);
     }
@@ -59,9 +42,8 @@ const LoginPage = () => {
     const waResult = await requestWhatsAppOtp(phone, targetEmail);
     setIsSendingWhatsApp(false);
     if (waResult.success) {
-      const maskedPhone = waResult.data.maskedDestination || phone;
-      const displayEmail = targetEmail || adminEmailMap[phone] || '';
-      setWhatsAppInfo(`OTP code sent via WhatsApp (${maskedPhone}) and Email (${displayEmail})`);
+      const maskedPhone = waResult.data.maskedDestination || phone || '***';
+      setWhatsAppInfo(`OTP code sent via WhatsApp (${maskedPhone}) and Email (${targetEmail})`);
     } else {
       setWhatsAppInfo(`Could not auto-send OTP: ${waResult.error}`);
     }
@@ -98,8 +80,8 @@ const LoginPage = () => {
     const isMfa = ['MFA_REQUIRED', 'SMS_MFA', 'TOTP_REQUIRED'].includes(pendingChallenge.challengeName);
 
     if (isMfa) {
-      const targetPhone = resolvePhone(pendingChallenge.destination, email);
-      const targetEmail = email || adminEmailMap[targetPhone] || 'inashuriye@gmail.com';
+      const targetPhone = pendingChallenge.destination || '';
+      const targetEmail = pendingChallenge.email || email;
 
       return (
         <div className="min-h-screen bg-lavender-50 flex items-center justify-center px-4">
@@ -129,8 +111,8 @@ const LoginPage = () => {
                     <p className="text-xs text-emerald-800 font-bold">{whatsAppInfo}</p>
                   </div>
                   <div className="text-[11px] text-emerald-700 space-y-1 pt-1.5 border-t border-emerald-200/50">
-                    <p>💬 <b>WhatsApp:</b> Sender <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">+1 (205) 846-9763</code> (Check Message Requests / Unknown Senders)</p>
-                    <p>✉️ <b>Email:</b> Sender <code className="bg-emerald-100/80 px-1 py-0.5 rounded font-mono text-[10px]">no-reply@chatworks.chat</code> (Check Spam / Junk folder)</p>
+                    <p><b>WhatsApp:</b> Check Message Requests / Unknown Senders</p>
+                    <p><b>Email:</b> Check Spam / Junk folder</p>
                   </div>
                 </div>
               )}

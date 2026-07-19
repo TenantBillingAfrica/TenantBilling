@@ -4,12 +4,16 @@ const { CognitoIdentityProviderClient } = require('@aws-sdk/client-cognito-ident
 const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, created, badRequest, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
+const { parseBody, validateFields, isValidEmail, generateTempPassword } = require('../lib/request');
 
 const cognito = new CognitoIdentityProviderClient({});
 const TABLE = process.env.STAFF_TABLE;
 
+const ALLOWED_ROLES = ['meter_reader', 'instance_admin', 'accountant'];
+
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const claims = getClaims(event);
   const denied = requireRole(claims, 'instance_admin');
@@ -31,8 +35,8 @@ exports.handler = async (event) => {
         return badRequest('Unsupported method');
     }
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('StaffHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
@@ -46,18 +50,31 @@ async function list(instanceId) {
 }
 
 async function create(instanceId, instanceName, event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'email', 'phone', 'role'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { name, email, phone, role } = body;
 
   if (!name || !email) return badRequest('Name and email are required');
 
+  if (!isValidEmail(email)) return badRequest('Invalid email format');
+
   const staffRole = role || 'meter_reader';
+  if (!ALLOWED_ROLES.includes(staffRole)) {
+    return badRequest(`Invalid role. Allowed: ${ALLOWED_ROLES.join(', ')}`);
+  }
+
+  const tempPassword = generateTempPassword();
 
   // Create Cognito user for the staff member
   await cognito.send(new AdminCreateUserCommand({
     UserPoolId: process.env.USER_POOL_ID,
     Username: email,
-    TemporaryPassword: 'TempPass1!',
+    TemporaryPassword: tempPassword,
     UserAttributes: [
       { Name: 'email', Value: email },
       { Name: 'email_verified', Value: 'true' },
@@ -85,7 +102,20 @@ async function create(instanceId, instanceName, event) {
 
 async function update(instanceId, event) {
   const id = event.pathParameters.id;
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'email', 'phone', 'role', 'status'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
+  if (body.role && !ALLOWED_ROLES.includes(body.role)) {
+    return badRequest(`Invalid role. Allowed: ${ALLOWED_ROLES.join(', ')}`);
+  }
+
+  if (body.email && !isValidEmail(body.email)) {
+    return badRequest('Invalid email format');
+  }
 
   const expressions = [];
   const names = {};

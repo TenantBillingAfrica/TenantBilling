@@ -1,16 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Building2, Users, Droplets, FileText, CreditCard,
-  UserPlus, Plus, Search, Edit, Trash2, Send, X, Loader,
+  UserPlus, Plus, Search, Edit, Trash2, Send, X, Loader, Bell, MessageSquare,
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { listBuildings, createBuilding, deleteBuilding } from '../../services/buildings.service';
-import { listTenants, createTenant, deleteTenant } from '../../services/tenants.service';
+import { listTenants, createTenant, updateTenant, deleteTenant } from '../../services/tenants.service';
 import { listStaff, createStaff, deleteStaff } from '../../services/staff.service';
 import { listInvoices, generateInvoices } from '../../services/invoices.service';
 import { listPayments, initiatePayment } from '../../services/payments.service';
 import { listMeterReadings, createMeterReading } from '../../services/meter-readings.service';
+import { sendInvoiceNotifications, sendPaymentReminders, sendMeterReadingReminders } from '../../services/notifications.service';
 
 const TABS = [
   { key: 'buildings', label: 'instance_buildings', icon: Building2, gradient: 'from-emerald-400 to-teal-500' },
@@ -132,6 +133,17 @@ const InstanceAdminDashboard = () => {
     }
   };
 
+  const handleVacateTenant = async (id) => {
+    if (!window.confirm('Mark this tenant as vacated? They will no longer receive bills or reminders.')) return;
+    try {
+      await updateTenant(id, { status: 'vacated' });
+      const res = await listTenants();
+      setTenants(res.data);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to update tenant status');
+    }
+  };
+
   const handleCreateStaff = async () => {
     setActionLoading(true);
     try {
@@ -194,6 +206,44 @@ const InstanceAdminDashboard = () => {
       setPayments(res.data);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to initiate payment');
+    }
+  };
+
+  const handleSendInvoiceNotifications = async () => {
+    setActionLoading(true);
+    try {
+      const now = new Date();
+      const period = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const res = await sendInvoiceNotifications({ period });
+      alert(`Invoice notifications: ${res.data.sent} sent, ${res.data.failed} failed`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send invoice notifications');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendPaymentReminders = async () => {
+    setActionLoading(true);
+    try {
+      const res = await sendPaymentReminders({ daysOverdue: 7 });
+      alert(`Payment reminders: ${res.data.sent} sent to overdue tenants (${res.data.totalOverdue} overdue)`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send payment reminders');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSendMeterReminders = async () => {
+    setActionLoading(true);
+    try {
+      const res = await sendMeterReadingReminders();
+      alert(`Meter reading reminders: ${res.data.sent} staff notified (${res.data.unreadMeters || 0} unread meters)`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to send meter reading reminders');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -464,6 +514,9 @@ const InstanceAdminDashboard = () => {
                           </td>
                           <td className="px-5 py-4">
                             <div className="flex items-center gap-1">
+                              {tenant.status === 'active' && (
+                                <button onClick={() => handleVacateTenant(tenant.id)} className="px-2.5 py-1 text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-full cursor-pointer hover:bg-amber-100 transition-colors" title="Mark as Vacated">Vacate</button>
+                              )}
                               <button className="p-1.5 text-gray-400 hover:text-navy-800 hover:bg-lavender-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Edit size={15} /></button>
                               <button onClick={() => handleDeleteTenant(tenant.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 bg-transparent border-none cursor-pointer rounded-lg transition-colors"><Trash2 size={15} /></button>
                             </div>
@@ -525,14 +578,23 @@ const InstanceAdminDashboard = () => {
             {/* Meters tab */}
             {activeTab === 'meters' && (
               <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-100/30 p-7">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
-                    <Droplets size={18} className="text-white" />
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+                      <Droplets size={18} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-navy-800">Water Meter Readings</h3>
+                      <p className="text-xs text-gray-400">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-navy-800">Water Meter Readings</h3>
-                    <p className="text-xs text-gray-400">{new Date().toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
-                  </div>
+                  <button
+                    onClick={handleSendMeterReminders}
+                    disabled={actionLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-cyan-500 text-white text-sm font-bold rounded-full border-none cursor-pointer hover:bg-cyan-600 hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    <MessageSquare size={16} /> Remind Staff to Read Meters
+                  </button>
                 </div>
                 {tenants.filter(t => t.status === 'active' && t.meterNumber).length === 0 ? (
                   <div className="text-center py-12 text-sm text-gray-400">No tenants with water meters found.</div>
@@ -571,13 +633,27 @@ const InstanceAdminDashboard = () => {
             {/* Billing tab */}
             {activeTab === 'billing' && (
               <>
-                <div className="flex items-center justify-end mb-6">
+                <div className="flex items-center justify-end mb-6 gap-3 flex-wrap">
                   <button
                     onClick={handleGenerateInvoices}
                     disabled={actionLoading}
                     className="flex items-center gap-2 px-6 py-2.5 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all disabled:opacity-50"
                   >
-                    <Send size={16} /> {actionLoading ? 'Generating...' : 'Generate & Send Invoices'}
+                    <FileText size={16} /> {actionLoading ? 'Generating...' : 'Generate Invoices'}
+                  </button>
+                  <button
+                    onClick={handleSendInvoiceNotifications}
+                    disabled={actionLoading}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-full border-none cursor-pointer hover:bg-emerald-600 hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    <Send size={16} /> Send Bills via WhatsApp
+                  </button>
+                  <button
+                    onClick={handleSendPaymentReminders}
+                    disabled={actionLoading}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white text-sm font-bold rounded-full border-none cursor-pointer hover:bg-amber-600 hover:shadow-lg transition-all disabled:opacity-50"
+                  >
+                    <Bell size={16} /> Send Payment Reminders
                   </button>
                 </div>
                 <div className="bg-white rounded-2xl overflow-hidden shadow-sm shadow-purple-100/20 border border-purple-100/30">

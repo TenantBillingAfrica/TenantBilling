@@ -4,7 +4,8 @@ const { CognitoIdentityProviderClient } = require('@aws-sdk/client-cognito-ident
 const { v4: uuid } = require('uuid');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
-const { ok, created, badRequest, notFound, serverError } = require('../lib/response');
+const { setEvent, ok, created, badRequest, notFound, serverError } = require('../lib/response');
+const { parseBody, validateFields, isValidEmail, generateTempPassword } = require('../lib/request');
 
 const cognito = new CognitoIdentityProviderClient({});
 const TABLE = process.env.APPLICATIONS_TABLE;
@@ -12,6 +13,7 @@ const USERS_TABLE = process.env.USERS_TABLE;
 const BUILDINGS_TABLE = process.env.BUILDINGS_TABLE;
 
 exports.handler = async (event) => {
+  setEvent(event);
   const method = event.requestContext.http.method;
   const path = event.rawPath;
 
@@ -57,17 +59,27 @@ exports.handler = async (event) => {
 
     return badRequest('Unknown route');
   } catch (err) {
-    console.error(err);
-    return serverError(err.message);
+    console.error('ApplicationsHandler error:', err);
+    return serverError('An unexpected error occurred');
   }
 };
 
 async function createApplication(event) {
-  const body = JSON.parse(event.body || '{}');
+  const body = parseBody(event);
+  if (!body) return badRequest('Invalid JSON in request body');
+
+  const allowedFields = ['name', 'email', 'phone', 'company', 'country'];
+  const invalid = validateFields(body, allowedFields);
+  if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
+
   const { name, email, phone, company, country } = body;
 
   if (!name || !email || !company || !country) {
     return badRequest('Missing required fields: name, email, company, country');
+  }
+
+  if (!isValidEmail(email)) {
+    return badRequest('Invalid email format');
   }
 
   const item = {
@@ -86,7 +98,7 @@ async function createApplication(event) {
 }
 
 async function listApplications() {
-  const result = await docClient.send(new ScanCommand({ TableName: TABLE }));
+  const result = await docClient.send(new ScanCommand({ TableName: TABLE, Limit: 1000 }));
   const items = (result.Items || []).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   return ok(items);
 }
@@ -96,12 +108,13 @@ async function approveApplication(id) {
   if (!Item) return notFound('Application not found');
 
   const instanceId = `inst-${uuid().slice(0, 8)}`;
+  const tempPassword = generateTempPassword();
 
-  // Create Cognito user with temp password
+  // Create Cognito user with random temp password
   await cognito.send(new AdminCreateUserCommand({
     UserPoolId: process.env.USER_POOL_ID,
     Username: Item.email,
-    TemporaryPassword: 'TempPass1!',
+    TemporaryPassword: tempPassword,
     UserAttributes: [
       { Name: 'email', Value: Item.email },
       { Name: 'email_verified', Value: 'true' },
