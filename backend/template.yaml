@@ -377,6 +377,32 @@ Resources:
             Auth:
               Authorizer: NONE
 
+  # OTP Proxy
+  OtpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-Auth-Otp
+      Handler: handlers/auth/otp.handler
+      CodeUri: .
+      Timeout: 30
+      Events:
+        SendOtp:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /auth/send-otp
+            Method: POST
+            Auth:
+              Authorizer: NONE
+        VerifyOtp:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /auth/verify-otp
+            Method: POST
+            Auth:
+              Authorizer: NONE
+
   # Applications
   ApplicationsFunction:
     Type: AWS::Serverless::Function
