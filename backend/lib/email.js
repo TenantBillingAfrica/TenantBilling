@@ -1,4 +1,4 @@
-const { SESClient, SendRawEmailCommand } = require('@aws-sdk/client-ses');
+const { SESClient, SendRawEmailCommand, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 const ses = new SESClient({});
 const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'invoices@tenantbilling.africa';
@@ -60,6 +60,76 @@ async function sendEmailWithPdf({ to, subject, textBody, htmlBody, pdfBuffer, pd
     RawMessage: { Data: Buffer.from(rawMessage) },
     Source: FROM_EMAIL,
     Destinations: [to],
+  });
+
+  return ses.send(command);
+}
+
+/**
+ * Send application approval email to applicant and copy admin.
+ */
+async function sendApplicationApprovalEmail({ to, cc, applicantName, companyName, tempPassword, loginUrl }) {
+  const subject = `Application Approved - Welcome to TenantBilling (${companyName})`;
+  const textBody = [
+    `Dear ${applicantName},`,
+    ``,
+    `Great news! Your property application for ${companyName} on TenantBilling has been approved.`,
+    ``,
+    `Your Administrator Account Details:`,
+    `Email: ${to}`,
+    `Temporary Password: ${tempPassword}`,
+    `Login URL: ${loginUrl || 'https://tenantbilling.africa/login'}`,
+    ``,
+    `Please log in using your temporary password. You will be prompted to set up a new password upon your first sign in.`,
+    ``,
+    `Best regards,`,
+    `TenantBilling Team`,
+    `https://tenantbilling.africa`,
+  ].join('\n');
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 24px;">Application Approved! 🎉</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 15px;">${companyName}</p>
+  </div>
+  <div style="background: white; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px;">
+    <p>Dear <strong>${applicantName}</strong>,</p>
+    <p>Your application for <strong>${companyName}</strong> on TenantBilling has been officially approved!</p>
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; border: 1px solid #e2e8f0;">
+      <p style="color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 12px 0; font-weight: 600;">Your Login Credentials</p>
+      <p style="margin: 4px 0; font-size: 14px;"><strong>Email:</strong> ${to}</p>
+      <p style="margin: 4px 0; font-size: 14px;"><strong>Temporary Password:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${tempPassword}</code></p>
+      <div style="margin-top: 16px; text-align: center;">
+        <a href="${loginUrl || 'https://tenantbilling.africa/login'}" style="background: #10b981; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; display: inline-block;">Log In to Dashboard &rarr;</a>
+      </div>
+    </div>
+    <p style="font-size: 13px; color: #64748b;">Please log in with your temporary password. You will be prompted to update your password on your first sign-in.</p>
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+    <p style="font-size: 12px; color: #9ca3af; text-align: center;">
+      TenantBilling Platform<br>
+      <a href="https://tenantbilling.africa" style="color: #10b981;">https://tenantbilling.africa</a>
+    </p>
+  </div>
+</body>
+</html>`;
+
+  const command = new SendEmailCommand({
+    Source: FROM_EMAIL,
+    Destination: {
+      ToAddresses: [to],
+      CcAddresses: cc ? [cc] : [],
+    },
+    Message: {
+      Subject: { Data: subject, Charset: 'UTF-8' },
+      Body: {
+        Text: { Data: textBody, Charset: 'UTF-8' },
+        Html: { Data: htmlBody, Charset: 'UTF-8' },
+      },
+    },
   });
 
   return ses.send(command);
@@ -181,4 +251,4 @@ function formatPeriod(period) {
   return `${months[parseInt(month, 10) - 1] || month} ${year}`;
 }
 
-module.exports = { sendEmailWithPdf, sendInvoiceEmail, sendReceiptEmail };
+module.exports = { sendEmailWithPdf, sendApplicationApprovalEmail, sendInvoiceEmail, sendReceiptEmail };

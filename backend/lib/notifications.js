@@ -391,6 +391,39 @@ async function sendWhatsAppTextReceipt({ tenantName, phone, amount, currency, pe
   }
 }
 
+/**
+ * Send application approval WhatsApp message to applicant and copy admin.
+ */
+async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName, companyName, tempPassword, loginUrl }) {
+  const message = [
+    `🎉 *TenantBilling Application Approved!*`,
+    ``,
+    `Hello ${applicantName},`,
+    `Your application for *${companyName}* on TenantBilling has been approved!`,
+    ``,
+    `*Your Login Credentials:*`,
+    `📧 Username: ${phone}`,
+    `🔑 Temp Password: \`${tempPassword}\``,
+    `🌐 Login URL: ${loginUrl || 'https://tenantbilling.africa/login'}`,
+    ``,
+    `Please sign in to complete your account setup. Welcome aboard!`,
+  ].join('\n');
+
+  try {
+    // Send to applicant
+    const result = await sendWhatsAppMessage({ phone, message });
+
+    // Send copy to admin if provided
+    if (copyPhone && copyPhone !== phone) {
+      await sendWhatsAppMessage({ phone: copyPhone, message: `[COPY] Application Approval Notification sent to ${applicantName} (${phone}):\n\n${message}` });
+    }
+
+    return { sent: result.statusCode >= 200 && result.statusCode < 300, result };
+  } catch (err) {
+    return { sent: false, reason: err.message };
+  }
+}
+
 module.exports = {
   sendWhatsAppMessage,
   sendWhatsAppDocument,
@@ -398,4 +431,5 @@ module.exports = {
   sendPaymentReminder,
   sendMeterReadingReminder,
   sendPaymentReceipt,
+  sendApplicationApprovalWhatsApp,
 };
