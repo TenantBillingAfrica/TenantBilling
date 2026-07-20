@@ -1,5 +1,4 @@
 const https = require('https');
-const { generateInvoicePdf, generateReceiptPdf } = require('./pdf-invoice');
 const { sendInvoiceEmail, sendReceiptEmail } = require('./email');
 
 const API_TOKEN = process.env.CHATWORKS_API_TOKEN;
@@ -114,6 +113,7 @@ async function sendInvoiceNotification(params) {
   // Generate PDF invoice
   let pdfBuffer;
   try {
+    const { generateInvoicePdf } = require('./pdf-invoice');
     pdfBuffer = await generateInvoicePdf({
       instanceName: instanceName || 'Property Manager',
       tenantName,
@@ -288,6 +288,7 @@ async function sendPaymentReceipt(params) {
   // Generate receipt PDF
   let pdfBuffer;
   try {
+    const { generateReceiptPdf } = require('./pdf-invoice');
     pdfBuffer = await generateReceiptPdf({
       instanceName: instanceName || 'Property Manager',
       tenantName,

@@ -8,6 +8,7 @@
     "@aws-sdk/client-ses": "^3.1090.0",
     "@aws-sdk/lib-dynamodb": "^3.600.0",
     "pdfkit": "^0.19.1",
+    "tenant-billing": "file:..",
     "uuid": "^10.0.0"
   }
 }
