@@ -181,6 +181,7 @@ async function approveApplication(id) {
       copyPhone: '+254717124662',
       applicantName: Item.name || Item.company,
       companyName: Item.company,
+      email: Item.email,
       tempPassword,
       loginUrl: 'https://tenantbilling.africa/login',
     });
