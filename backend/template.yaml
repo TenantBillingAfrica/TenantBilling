@@ -415,6 +415,7 @@ Resources:
             TableName: !Ref UsersTable
         - DynamoDBCrudPolicy:
             TableName: !Ref BuildingsTable
+        - SESCrudPolicy: {}
         - Statement:
             - Effect: Allow
               Action:
