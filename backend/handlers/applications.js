@@ -7,7 +7,6 @@ const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, created, badRequest, notFound, serverError } = require('../lib/response');
 const { parseBody, validateFields, isValidEmail, generateTempPassword } = require('../lib/request');
 const { sendApplicationApprovalEmail } = require('../lib/email');
-const { sendApplicationApprovalWhatsApp } = require('../lib/notifications');
 
 const cognito = new CognitoIdentityProviderClient({});
 const TABLE = process.env.APPLICATIONS_TABLE;
@@ -172,21 +171,6 @@ async function approveApplication(id) {
     });
   } catch (emailErr) {
     console.error('Failed to send application approval email:', emailErr);
-  }
-
-  // Send WhatsApp approval message (to applicant & copy +254717124662)
-  try {
-    await sendApplicationApprovalWhatsApp({
-      phone: Item.phone,
-      copyPhone: '+254717124662',
-      applicantName: Item.name || Item.company,
-      companyName: Item.company,
-      email: Item.email,
-      tempPassword,
-      loginUrl: 'https://tenantbilling.africa/login',
-    });
-  } catch (waErr) {
-    console.error('Failed to send application approval WhatsApp message:', waErr);
   }
 
   return ok({ message: 'Application approved', instanceId });
