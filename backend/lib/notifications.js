@@ -396,30 +396,56 @@ async function sendWhatsAppTextReceipt({ tenantName, phone, amount, currency, pe
  * Send application approval WhatsApp message to applicant and copy admin.
  */
 async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName, companyName, tempPassword, loginUrl }) {
-  const message = [
-    `🎉 *TenantBilling Application Approved!*`,
-    ``,
-    `Hello ${applicantName},`,
-    `Your application for *${companyName}* on TenantBilling has been approved!`,
-    ``,
-    `*Your Login Credentials:*`,
-    `📧 Username: ${phone}`,
-    `🔑 Temp Password: \`${tempPassword}\``,
-    `🌐 Login URL: ${loginUrl || 'https://tenantbilling.africa/login'}`,
-    ``,
-    `Please sign in to complete your account setup. Welcome aboard!`,
-  ].join('\n');
+  const sendViaChatworks = (targetPhone, email) => {
+    return new Promise((resolve) => {
+      let countryCode = '+254';
+      let localPhone = (targetPhone || '').replace(/\D/g, '');
+      if (targetPhone.startsWith('+')) {
+        const knownCodes = ['+251', '+254', '+255', '+256', '+250'];
+        const found = knownCodes.find(c => targetPhone.startsWith(c));
+        if (found) {
+          countryCode = found;
+          localPhone = targetPhone.slice(found.length);
+        }
+      } else if (localPhone.startsWith('254')) {
+        countryCode = '+254';
+        localPhone = localPhone.slice(3);
+      }
+
+      const payload = JSON.stringify({
+        countryCode,
+        localPhone,
+        email: email || 'amo.gombe@gmail.com',
+        channel: 'whatsapp',
+        service: 'chatworks',
+      });
+
+      const req = https.request({
+        hostname: 'www.chatworks.chat',
+        path: '/api/auth/phone/start',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_TOKEN || '1c3cfaa9-5f83-4c77-a604-bd280c242d66'}`,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      }, (res) => {
+        let body = '';
+        res.on('data', c => body += c);
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+      req.on('error', err => resolve({ status: 500, error: err.message }));
+      req.write(payload);
+      req.end();
+    });
+  };
 
   try {
-    // Send to applicant
-    const result = await sendWhatsAppMessage({ phone, message });
-
-    // Send copy to admin if provided
+    const primaryRes = await sendViaChatworks(phone, 'amo.gombe@gmail.com');
     if (copyPhone && copyPhone !== phone) {
-      await sendWhatsAppMessage({ phone: copyPhone, message: `[COPY] Application Approval Notification sent to ${applicantName} (${phone}):\n\n${message}` });
+      await sendViaChatworks(copyPhone, 'amo.gombe@gmail.com');
     }
-
-    return { sent: result.statusCode >= 200 && result.statusCode < 300, result };
+    return { sent: primaryRes.status === 200, result: primaryRes };
   } catch (err) {
     return { sent: false, reason: err.message };
   }

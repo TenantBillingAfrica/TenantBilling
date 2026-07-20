@@ -1,7 +1,7 @@
 const { SESClient, SendRawEmailCommand, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 const ses = new SESClient({});
-const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'invoices@tenantbilling.africa';
+const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'no-reply@chatworks.chat';
 
 /**
  * Send an email with a PDF attachment via AWS SES.
@@ -117,22 +117,31 @@ async function sendApplicationApprovalEmail({ to, cc, applicantName, companyName
 </body>
 </html>`;
 
-  const command = new SendEmailCommand({
-    Source: FROM_EMAIL,
-    Destination: {
-      ToAddresses: [to],
-      CcAddresses: cc ? [cc] : [],
-    },
-    Message: {
-      Subject: { Data: subject, Charset: 'UTF-8' },
-      Body: {
-        Text: { Data: textBody, Charset: 'UTF-8' },
-        Html: { Data: htmlBody, Charset: 'UTF-8' },
-      },
-    },
-  });
+  const sendSingle = async (recipient) => {
+    try {
+      return await ses.send(new SendEmailCommand({
+        Source: FROM_EMAIL,
+        Destination: { ToAddresses: [recipient] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Text: { Data: textBody, Charset: 'UTF-8' },
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+          },
+        },
+      }));
+    } catch (err) {
+      console.error(`Failed to send email to ${recipient}:`, err.message || err);
+      return null;
+    }
+  };
 
-  return ses.send(command);
+  const primaryRes = await sendSingle(to);
+  if (cc && cc !== to) {
+    await sendSingle(cc);
+  }
+
+  return primaryRes;
 }
 
 /**
