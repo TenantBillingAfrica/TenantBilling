@@ -1,7 +1,9 @@
 const { SESClient, SendRawEmailCommand, SendEmailCommand } = require('@aws-sdk/client-ses');
 
 const ses = new SESClient({});
-const FROM_EMAIL = process.env.SES_FROM_EMAIL || 'no-reply@chatworks.chat';
+const FROM_EMAIL = (process.env.SES_FROM_EMAIL && !process.env.SES_FROM_EMAIL.includes('tenantbilling.africa'))
+  ? process.env.SES_FROM_EMAIL
+  : 'no-reply@chatworks.chat';
 
 /**
  * Send an email with a PDF attachment via AWS SES.
