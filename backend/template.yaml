@@ -419,7 +419,8 @@ Resources:
             TableName: !Ref UsersTable
         - DynamoDBCrudPolicy:
             TableName: !Ref BuildingsTable
-        - SESCrudPolicy: {}
+        - SESCrudPolicy:
+            IdentityName: 'chatworks.chat'
         - Statement:
             - Effect: Allow
               Action:
