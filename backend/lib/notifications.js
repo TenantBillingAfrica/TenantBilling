@@ -7,15 +7,16 @@ const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_WA_FROM = process.env.TWILIO_WHATSAPP_FROM;
 const TWILIO_MSG_SID = process.env.TWILIO_MESSAGING_SERVICE_SID;
 
-/**
- * Send a WhatsApp text message via Twilio.
- */
-function sendWhatsAppMessage({ phone, message }) {
-  const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+// Approved WhatsApp Content Template SIDs
+const WELCOME_TEMPLATE_SID = 'HXf114d1d1f248d80a14be0673aa937bdd';
 
-  const params = new URLSearchParams();
-  params.append('To', to);
-  params.append('Body', message);
+/**
+ * Low-level Twilio message sender. Accepts pre-built URLSearchParams.
+ */
+function twilioSend(params) {
+  const to = params.get('To');
+  if (!to) return Promise.reject(new Error('Missing To'));
+
   if (TWILIO_MSG_SID) {
     params.append('MessagingServiceSid', TWILIO_MSG_SID);
   } else {
@@ -51,6 +52,31 @@ function sendWhatsAppMessage({ phone, message }) {
     req.write(payload);
     req.end();
   });
+}
+
+/**
+ * Send a WhatsApp text message via Twilio (free-form, only works within 24h window).
+ */
+function sendWhatsAppMessage({ phone, message }) {
+  const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+  const params = new URLSearchParams();
+  params.append('To', to);
+  params.append('Body', message);
+  return twilioSend(params);
+}
+
+/**
+ * Send a WhatsApp template message via Twilio Content API.
+ */
+function sendWhatsAppTemplate({ phone, contentSid, contentVariables }) {
+  const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
+  const params = new URLSearchParams();
+  params.append('To', to);
+  params.append('ContentSid', contentSid);
+  if (contentVariables) {
+    params.append('ContentVariables', JSON.stringify(contentVariables));
+  }
+  return twilioSend(params);
 }
 
 /**
@@ -363,32 +389,31 @@ async function sendWhatsAppTextReceipt({ tenantName, phone, amount, currency, pe
 
 /**
  * Send application approval WhatsApp welcome message to applicant and copy admin.
+ * Uses an approved WhatsApp Content Template (UTILITY category).
  */
 async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName, companyName, email, tempPassword, loginUrl }) {
   if (!phone) return { sent: false, reason: 'No phone number' };
 
-  const message = [
-    `Welcome to TenantBilling!`,
-    ``,
-    `Dear ${applicantName},`,
-    ``,
-    `Your application for *${companyName}* has been approved.`,
-    ``,
-    `Your login credentials:`,
-    `  Email: ${email}`,
-    `  Temporary Password: ${tempPassword}`,
-    ``,
-    `Login here: ${loginUrl || 'https://tenantbilling.africa/login'}`,
-    ``,
-    `You will be prompted to set a new password on first sign-in.`,
-    ``,
-    `- TenantBilling Team`,
-  ].join('\n');
+  const contentVariables = {
+    '1': applicantName,
+    '2': companyName,
+    '3': email,
+    '4': tempPassword,
+    '5': loginUrl || 'https://tenantbilling.africa/login',
+  };
 
   try {
-    const primaryRes = await sendWhatsAppMessage({ phone, message });
+    const primaryRes = await sendWhatsAppTemplate({
+      phone,
+      contentSid: WELCOME_TEMPLATE_SID,
+      contentVariables,
+    });
     if (copyPhone && copyPhone !== phone) {
-      await sendWhatsAppMessage({ phone: copyPhone, message });
+      await sendWhatsAppTemplate({
+        phone: copyPhone,
+        contentSid: WELCOME_TEMPLATE_SID,
+        contentVariables,
+      });
     }
     return { sent: primaryRes.statusCode >= 200 && primaryRes.statusCode < 300, result: primaryRes };
   } catch (err) {
@@ -398,6 +423,7 @@ async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName
 
 module.exports = {
   sendWhatsAppMessage,
+  sendWhatsAppTemplate,
   sendWhatsAppDocument,
   sendInvoiceNotification,
   sendPaymentReminder,
