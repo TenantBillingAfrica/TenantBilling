@@ -1,7 +1,7 @@
 const { PutCommand, GetCommand, ScanCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 const { AdminCreateUserCommand, AdminUpdateUserAttributesCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const { CognitoIdentityProviderClient } = require('@aws-sdk/client-cognito-identity-provider');
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, created, badRequest, notFound, serverError } = require('../lib/response');
