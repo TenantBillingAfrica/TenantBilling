@@ -37,6 +37,8 @@ function decomposePhone(fullPhone) {
   return { countryCode, localPhone };
 }
 
+const CHATWORKS_API_TOKEN = process.env.CHATWORKS_API_TOKEN || '1c3cfaa9-5f83-4c77-a604-bd280c242d66';
+
 function postJson(urlStr, data) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlStr);
@@ -47,6 +49,7 @@ function postJson(urlStr, data) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${CHATWORKS_API_TOKEN}`,
         'Content-Length': Buffer.byteLength(payload),
       },
     }, (res) => {
@@ -115,7 +118,7 @@ async function sendOtp(event) {
     localPhone,
     email: deliveryEmail,
     channel: 'whatsapp',
-    service: 'chatworks',
+    service: 'tenantbilling',
   });
 
   if (waRes.status !== 200) {
@@ -127,7 +130,7 @@ async function sendOtp(event) {
   try {
     const emailRes = await postJson('https://www.chatworks.chat/api/auth/email/start', {
       email: deliveryEmail,
-      service: 'chatworks',
+      service: 'tenantbilling',
     });
     if (emailRes.status === 200) {
       emailToken = emailRes.data?.token;

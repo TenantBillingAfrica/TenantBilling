@@ -113,20 +113,37 @@ async function approveApplication(id) {
   const instanceId = `inst-${uuid().slice(0, 8)}`;
   const tempPassword = generateTempPassword();
 
-  // Create Cognito user with random temp password
-  await cognito.send(new AdminCreateUserCommand({
-    UserPoolId: process.env.USER_POOL_ID,
-    Username: Item.email,
-    TemporaryPassword: tempPassword,
-    UserAttributes: [
-      { Name: 'email', Value: Item.email },
-      { Name: 'email_verified', Value: 'true' },
-      { Name: 'custom:role', Value: 'instance_admin' },
-      { Name: 'custom:instanceId', Value: instanceId },
-      { Name: 'custom:instanceName', Value: Item.company },
-    ],
-    DesiredDeliveryMediums: ['EMAIL'],
-  }));
+  // Create Cognito user with random temp password (or update attributes if user exists)
+  try {
+    await cognito.send(new AdminCreateUserCommand({
+      UserPoolId: process.env.USER_POOL_ID,
+      Username: Item.email,
+      TemporaryPassword: tempPassword,
+      UserAttributes: [
+        { Name: 'email', Value: Item.email },
+        { Name: 'email_verified', Value: 'true' },
+        { Name: 'custom:role', Value: 'instance_admin' },
+        { Name: 'custom:instanceId', Value: instanceId },
+        { Name: 'custom:instanceName', Value: Item.company },
+      ],
+      DesiredDeliveryMediums: ['EMAIL'],
+    }));
+  } catch (err) {
+    if (err.name === 'UsernameExistsException') {
+      // User account already exists in Cognito — update user attributes for instance admin access
+      await cognito.send(new AdminUpdateUserAttributesCommand({
+        UserPoolId: process.env.USER_POOL_ID,
+        Username: Item.email,
+        UserAttributes: [
+          { Name: 'custom:role', Value: 'instance_admin' },
+          { Name: 'custom:instanceId', Value: instanceId },
+          { Name: 'custom:instanceName', Value: Item.company },
+        ],
+      }));
+    } else {
+      throw err;
+    }
+  }
 
   // Update application status
   await docClient.send(new UpdateCommand({
