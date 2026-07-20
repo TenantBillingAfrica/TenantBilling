@@ -47,7 +47,32 @@ function isNonNegativeNumber(val) {
  * Produces a 12-character base64 password with a forced symbol appended.
  */
 function generateTempPassword() {
-  return crypto.randomBytes(9).toString('base64') + '!';
+  const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lowers = 'abcdefghijkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const symbols = '!@#$%^&*';
+
+  const pick = (chars) => chars[crypto.randomInt(chars.length)];
+
+  const pass = [
+    pick(uppers),
+    pick(lowers),
+    pick(digits),
+    pick(symbols),
+    pick(uppers),
+    pick(lowers),
+    pick(digits),
+    pick(symbols),
+    pick(uppers),
+    pick(digits),
+  ];
+
+  for (let i = pass.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(i + 1);
+    [pass[i], pass[j]] = [pass[j], pass[i]];
+  }
+
+  return pass.join('');
 }
 
 /**
