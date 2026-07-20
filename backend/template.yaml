@@ -374,6 +374,8 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /auth/otp-config
             Method: GET
+            Auth:
+              Authorizer: NONE
 
   # Applications
   ApplicationsFunction:

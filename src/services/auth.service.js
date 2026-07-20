@@ -36,10 +36,11 @@ export function login(email, password) {
           user: {
             id: payload.sub,
             email: payload.email,
+            phone: payload.phone_number || payload['phone_number'] || '',
             role: payload['custom:role'],
             instanceId: payload['custom:instanceId'],
             instanceName: payload['custom:instanceName'],
-            name: payload.email.split('@')[0],
+            name: payload.email ? payload.email.split('@')[0] : 'User',
           },
         });
       },
@@ -134,10 +135,11 @@ export function completeNewPassword(cognitoUser, newPassword) {
           user: {
             id: payload.sub,
             email: payload.email,
+            phone: payload.phone_number || payload['phone_number'] || '',
             role: payload['custom:role'],
             instanceId: payload['custom:instanceId'],
             instanceName: payload['custom:instanceName'],
-            name: payload.email.split('@')[0],
+            name: payload.email ? payload.email.split('@')[0] : 'User',
           },
         });
       },
@@ -182,10 +184,11 @@ export function getCurrentSession() {
           user: {
             id: payload.sub,
             email: payload.email,
+            phone: payload.phone_number || payload['phone_number'] || '',
             role: payload['custom:role'],
             instanceId: payload['custom:instanceId'],
             instanceName: payload['custom:instanceName'],
-            name: payload.email.split('@')[0],
+            name: payload.email ? payload.email.split('@')[0] : 'User',
           },
         });
       } else {
