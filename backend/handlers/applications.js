@@ -68,11 +68,11 @@ async function createApplication(event) {
   const body = parseBody(event);
   if (!body) return badRequest('Invalid JSON in request body');
 
-  const allowedFields = ['name', 'email', 'phone', 'company', 'country'];
+  const allowedFields = ['name', 'email', 'phone', 'company', 'country', 'phoneVerified', 'emailVerified', 'verifiedAt'];
   const invalid = validateFields(body, allowedFields);
   if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
 
-  const { name, email, phone, company, country } = body;
+  const { name, email, phone, company, country, phoneVerified, emailVerified, verifiedAt } = body;
 
   if (!name || !email || !company || !country) {
     return badRequest('Missing required fields: name, email, company, country');
@@ -89,6 +89,9 @@ async function createApplication(event) {
     phone: phone || '',
     company,
     country,
+    phoneVerified: !!phoneVerified,
+    emailVerified: !!emailVerified,
+    verifiedAt: verifiedAt || new Date().toISOString(),
     status: 'pending',
     createdAt: new Date().toISOString(),
   };

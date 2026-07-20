@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Users, TrendingUp, DollarSign, Settings,
-  CheckCircle, XCircle, Clock, Building2, Loader,
+  CheckCircle, XCircle, Clock, Building2, Loader, RefreshCw, AlertCircle, ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { listApplications, approveApplication, rejectApplication, suspendApplication } from '../../services/applications.service';
@@ -29,19 +29,22 @@ const SystemAdminDashboard = () => {
   const [stats, setStats] = useState(null);
   const [pnl, setPnl] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const [appsRes, statsRes] = await Promise.all([
         listApplications(),
         api.get('/admin/stats'),
       ]);
-      setApplications(appsRes.data);
+      setApplications(Array.isArray(appsRes.data) ? appsRes.data : []);
       setStats(statsRes.data);
     } catch (err) {
       console.error('Failed to fetch data:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to fetch dashboard data');
     } finally {
       setLoading(false);
     }
@@ -156,6 +159,30 @@ const SystemAdminDashboard = () => {
 
       {/* Main content */}
       <div className="flex-1 overflow-y-auto p-8 bg-lavender-50">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-extrabold text-navy-800 tracking-tight">{t(TABS.find(t => t.key === activeTab)?.label || 'admin_dashboard')}</h2>
+          <button
+            onClick={fetchData}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-navy-800 border border-purple-100 rounded-xl text-xs font-bold shadow-sm hover:bg-purple-50 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin text-purple-600' : 'text-purple-600'} />
+            Refresh Data
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between text-xs text-red-700">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} className="text-red-500 shrink-0" />
+              <span>{error}</span>
+            </div>
+            <button onClick={fetchData} className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg border-none cursor-pointer hover:bg-red-700">
+              Retry
+            </button>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <Loader size={32} className="text-purple-400 animate-spin" />
@@ -164,8 +191,6 @@ const SystemAdminDashboard = () => {
           <>
             {activeTab === 'overview' && (
               <>
-                <h2 className="text-2xl font-extrabold text-navy-800 mb-8 tracking-tight">{t('admin_dashboard')}</h2>
-
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   {statCards.map((stat, i) => {
                     const Icon = stat.icon;
@@ -185,8 +210,9 @@ const SystemAdminDashboard = () => {
 
                 {/* Recent applications table */}
                 <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 overflow-hidden">
-                  <div className="px-6 py-5 border-b border-gray-100">
-                    <p className="text-sm font-bold text-navy-800">Recent Applications</p>
+                  <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-sm font-bold text-navy-800">Recent Property Applications</p>
+                    <span className="text-xs font-medium text-gray-400">{applications.length} Total</span>
                   </div>
                   {applications.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-gray-400">No applications yet</div>
@@ -194,7 +220,7 @@ const SystemAdminDashboard = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-100">
-                          {['Company', 'Owner', 'Country', 'Status', 'Date', 'Actions'].map(h => (
+                          {['Company / Property', 'Applicant', 'Country', 'Verification', 'Status', 'Date', 'Actions'].map(h => (
                             <th key={h} className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
                           ))}
                         </tr>
@@ -203,8 +229,16 @@ const SystemAdminDashboard = () => {
                         {applications.slice(0, 10).map(app => (
                           <tr key={app.id} className="border-b border-gray-50 hover:bg-lavender-50/50 transition-colors">
                             <td className="px-6 py-4 text-sm font-semibold text-navy-800">{app.company}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{app.name}</td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              <div>{app.name}</div>
+                              <div className="text-xs text-gray-400">{app.email}</div>
+                            </td>
                             <td className="px-6 py-4 text-sm text-gray-500">{app.country}</td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                                <ShieldCheck size={12} /> Verified
+                              </span>
+                            </td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusStyle(app.status)}`}>
                                 {app.status}
@@ -247,15 +281,18 @@ const SystemAdminDashboard = () => {
 
             {activeTab === 'applications' && (
               <>
-                <h2 className="text-2xl font-extrabold text-navy-800 mb-8 tracking-tight">{t('admin_applications')}</h2>
                 <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 overflow-hidden">
+                  <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-sm font-bold text-navy-800">All Property Applications</p>
+                    <span className="text-xs font-medium text-gray-400">{applications.length} Total</span>
+                  </div>
                   {applications.length === 0 ? (
                     <div className="px-6 py-12 text-center text-sm text-gray-400">No applications yet</div>
                   ) : (
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-100">
-                          {['Company', 'Owner', 'Email', 'Country', 'Date', 'Status', 'Actions'].map(h => (
+                          {['Company / Property', 'Applicant', 'Phone', 'Country', 'Verification', 'Date', 'Status', 'Actions'].map(h => (
                             <th key={h} className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">{h}</th>
                           ))}
                         </tr>
@@ -264,9 +301,17 @@ const SystemAdminDashboard = () => {
                         {applications.map(app => (
                           <tr key={app.id} className="border-b border-gray-50 hover:bg-lavender-50/50 transition-colors">
                             <td className="px-6 py-4 text-sm font-semibold text-navy-800">{app.company}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{app.name}</td>
-                            <td className="px-6 py-4 text-sm text-gray-500">{app.email}</td>
+                            <td className="px-6 py-4 text-sm text-gray-500">
+                              <div>{app.name}</div>
+                              <div className="text-xs text-gray-400">{app.email}</div>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500">{app.phone}</td>
                             <td className="px-6 py-4 text-sm text-gray-500">{app.country}</td>
+                            <td className="px-6 py-4">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                                <ShieldCheck size={12} /> Verified
+                              </span>
+                            </td>
                             <td className="px-6 py-4 text-sm text-gray-500">{app.createdAt?.slice(0, 10)}</td>
                             <td className="px-6 py-4">
                               <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${getStatusStyle(app.status)}`}>

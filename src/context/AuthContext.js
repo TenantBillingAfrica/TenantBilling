@@ -13,10 +13,28 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const stored = localStorage.getItem('tb_user');
-    return stored ? JSON.parse(stored) : null;
+    const mfaVerified = localStorage.getItem('tb_mfa_verified');
+    if (!stored) return null;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.role === 'system_admin' && mfaVerified !== 'true') return null;
+      return parsed;
+    } catch (_) {
+      return null;
+    }
   });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return !!localStorage.getItem('tb_id_token');
+    const token = localStorage.getItem('tb_id_token');
+    const stored = localStorage.getItem('tb_user');
+    const mfaVerified = localStorage.getItem('tb_mfa_verified');
+    if (!token || !stored) return false;
+    try {
+      const parsed = JSON.parse(stored);
+      if (parsed.role === 'system_admin' && mfaVerified !== 'true') return false;
+      return true;
+    } catch (_) {
+      return false;
+    }
   });
   const [loading, setLoading] = useState(true);
   const [pendingChallenge, setPendingChallenge] = useState(null);
@@ -27,10 +45,23 @@ export const AuthProvider = ({ children }) => {
     getCurrentSession()
       .then((session) => {
         if (session) {
-          localStorage.setItem('tb_id_token', session.idToken);
-          localStorage.setItem('tb_user', JSON.stringify(session.user));
-          setUser(session.user);
-          setIsAuthenticated(true);
+          const isSystemAdmin = session.user?.role === 'system_admin';
+          const mfaVerified = localStorage.getItem('tb_mfa_verified') === 'true';
+
+          if (isSystemAdmin && !mfaVerified) {
+            // Clear unverified system admin session
+            cognitoLogout();
+            localStorage.removeItem('tb_id_token');
+            localStorage.removeItem('tb_user');
+            localStorage.removeItem('tb_mfa_verified');
+            setUser(null);
+            setIsAuthenticated(false);
+          } else {
+            localStorage.setItem('tb_id_token', session.idToken);
+            localStorage.setItem('tb_user', JSON.stringify(session.user));
+            setUser(session.user);
+            setIsAuthenticated(true);
+          }
         } else {
           setUser(null);
           setIsAuthenticated(false);
@@ -55,6 +86,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = useCallback(async (email, password) => {
     try {
+      // Clear any prior unverified session state
+      localStorage.removeItem('tb_id_token');
+      localStorage.removeItem('tb_user');
+      localStorage.removeItem('tb_mfa_verified');
+      setUser(null);
+      setIsAuthenticated(false);
+
       const result = await cognitoLogin(email, password);
 
       // Handle forced password change or Cognito MFA challenges
@@ -70,7 +108,6 @@ export const AuthProvider = ({ children }) => {
       // Enforce 2FA for system admin accounts
       const isSystemAdmin = result.user?.role === 'system_admin';
       if (isSystemAdmin) {
-        // Phone resolved server-side via /auth/otp-config
         setPendingChallenge({
           challengeName: 'MFA_REQUIRED',
           user: result.user,
@@ -88,6 +125,7 @@ export const AuthProvider = ({ children }) => {
 
       localStorage.setItem('tb_id_token', result.idToken);
       localStorage.setItem('tb_user', JSON.stringify(result.user));
+      localStorage.setItem('tb_mfa_verified', 'true');
       setUser(result.user);
       setIsAuthenticated(true);
       return { success: true, user: result.user };
@@ -102,7 +140,7 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // 1. If ChatWorks OTP session exists, always verify against ChatWorks first
+      // 1. If ChatWorks OTP session exists, verify against ChatWorks first
       if (whatsAppSession?.token) {
         const targetPhone = pendingChallenge.destination || '';
         await verifyWhatsAppOtp({
@@ -115,6 +153,7 @@ export const AuthProvider = ({ children }) => {
         // ChatWorks OTP verified successfully! Complete login.
         localStorage.setItem('tb_id_token', pendingChallenge.idToken);
         localStorage.setItem('tb_user', JSON.stringify(pendingChallenge.user));
+        localStorage.setItem('tb_mfa_verified', 'true');
         setUser(pendingChallenge.user);
         setIsAuthenticated(true);
         setPendingChallenge(null);
@@ -122,12 +161,13 @@ export const AuthProvider = ({ children }) => {
         return { success: true, user: pendingChallenge.user };
       }
 
-      // 2. Fallback: If only Cognito MFA challenge exists (no ChatWorks session)
+      // 2. Fallback: If only Cognito MFA challenge exists
       if (pendingChallenge.cognitoUser) {
         const mfaType = pendingChallenge.challengeName === 'TOTP_REQUIRED' ? 'SOFTWARE_TOKEN_MFA' : 'SMS_MFA';
         const result = await confirmMfaCode(pendingChallenge.cognitoUser, mfaCode, mfaType);
         localStorage.setItem('tb_id_token', result.idToken);
         localStorage.setItem('tb_user', JSON.stringify(result.user));
+        localStorage.setItem('tb_mfa_verified', 'true');
         setUser(result.user);
         setIsAuthenticated(true);
         setPendingChallenge(null);
@@ -148,6 +188,7 @@ export const AuthProvider = ({ children }) => {
       const result = await completeNewPassword(pendingChallenge.cognitoUser, newPassword);
       localStorage.setItem('tb_id_token', result.idToken);
       localStorage.setItem('tb_user', JSON.stringify(result.user));
+      localStorage.setItem('tb_mfa_verified', 'true');
       setUser(result.user);
       setIsAuthenticated(true);
       setPendingChallenge(null);
@@ -159,6 +200,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(() => {
     cognitoLogout();
+    localStorage.removeItem('tb_id_token');
+    localStorage.removeItem('tb_user');
+    localStorage.removeItem('tb_mfa_verified');
     setUser(null);
     setIsAuthenticated(false);
     setPendingChallenge(null);
