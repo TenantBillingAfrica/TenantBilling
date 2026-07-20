@@ -118,7 +118,7 @@ async function sendOtp(event) {
     localPhone,
     email: deliveryEmail,
     channel: 'whatsapp',
-    service: 'tenantbilling',
+    service: 'chatworks',
   });
 
   if (waRes.status !== 200) {
@@ -130,7 +130,7 @@ async function sendOtp(event) {
   try {
     const emailRes = await postJson('https://www.chatworks.chat/api/auth/email/start', {
       email: deliveryEmail,
-      service: 'tenantbilling',
+      service: 'chatworks',
     });
     if (emailRes.status === 200) {
       emailToken = emailRes.data?.token;
