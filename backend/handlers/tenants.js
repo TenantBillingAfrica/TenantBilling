@@ -1,5 +1,5 @@
 const { PutCommand, QueryCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');

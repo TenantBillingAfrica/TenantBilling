@@ -1,5 +1,5 @@
 const { QueryCommand, ScanCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
-const { v4: uuid } = require('uuid');
+const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const {
   sendInvoiceNotification,
