@@ -1,43 +1,35 @@
 const https = require('https');
 const { sendInvoiceEmail, sendReceiptEmail } = require('./email');
 
-// Twilio WhatsApp credentials
-const TWILIO_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_WA_FROM = process.env.TWILIO_WHATSAPP_FROM;
-const TWILIO_MSG_SID = process.env.TWILIO_MESSAGING_SERVICE_SID;
-
-// Approved WhatsApp Content Template SIDs
-const WELCOME_TEMPLATE_SID = 'HXf114d1d1f248d80a14be0673aa937bdd';
+const API_TOKEN = process.env.CHATWORKS_API_TOKEN;
+const CHATWORKS_BASE = 'https://www.chatworks.chat/api';
 
 /**
- * Low-level Twilio message sender. Accepts pre-built URLSearchParams.
+ * Send a WhatsApp message via ChatWorks messaging API.
  */
-function twilioSend(params) {
-  const to = params.get('To');
-  if (!to) return Promise.reject(new Error('Missing To'));
+function sendWhatsAppMessage({ phone, message }) {
+  const payload = JSON.stringify({
+    phone,
+    message,
+    channel: 'whatsapp',
+    service: 'tenantbilling',
+  });
 
-  if (TWILIO_MSG_SID) {
-    params.append('MessagingServiceSid', TWILIO_MSG_SID);
-  } else {
-    const from = TWILIO_WA_FROM.startsWith('whatsapp:') ? TWILIO_WA_FROM : `whatsapp:${TWILIO_WA_FROM}`;
-    params.append('From', from);
-  }
+  const url = new URL(`${CHATWORKS_BASE}/messages/send`);
 
-  const payload = params.toString();
-  const auth = Buffer.from(`${TWILIO_SID}:${TWILIO_TOKEN}`).toString('base64');
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_TOKEN}`,
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
 
   return new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: 'api.twilio.com',
-      path: `/2010-04-01/Accounts/${TWILIO_SID}/Messages.json`,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Authorization': `Basic ${auth}`,
-        'Content-Length': Buffer.byteLength(payload),
-      },
-    }, (res) => {
+    const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
@@ -55,38 +47,51 @@ function twilioSend(params) {
 }
 
 /**
- * Send a WhatsApp text message via Twilio (free-form, only works within 24h window).
- */
-function sendWhatsAppMessage({ phone, message }) {
-  const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
-  const params = new URLSearchParams();
-  params.append('To', to);
-  params.append('Body', message);
-  return twilioSend(params);
-}
-
-/**
- * Send a WhatsApp template message via Twilio Content API.
- */
-function sendWhatsAppTemplate({ phone, contentSid, contentVariables }) {
-  const to = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
-  const params = new URLSearchParams();
-  params.append('To', to);
-  params.append('ContentSid', contentSid);
-  if (contentVariables) {
-    params.append('ContentVariables', JSON.stringify(contentVariables));
-  }
-  return twilioSend(params);
-}
-
-/**
- * Send a WhatsApp message with a PDF document via Twilio.
- * Falls back to a text-only caption if media delivery fails.
+ * Send a WhatsApp message with a PDF document via ChatWorks media API.
  */
 function sendWhatsAppDocument({ phone, pdfBuffer, filename, caption }) {
-  // Twilio requires a publicly-accessible MediaUrl; inline base64 is not supported.
-  // Fall back to sending the caption as a text message for now.
-  return sendWhatsAppMessage({ phone, message: caption || filename });
+  const payload = JSON.stringify({
+    phone,
+    channel: 'whatsapp',
+    service: 'tenantbilling',
+    media: {
+      type: 'document',
+      filename,
+      caption: caption || '',
+      data: pdfBuffer.toString('base64'),
+      mimeType: 'application/pdf',
+    },
+  });
+
+  const url = new URL(`${CHATWORKS_BASE}/messages/send-media`);
+
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_TOKEN}`,
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve({ statusCode: res.statusCode, body: JSON.parse(data) });
+        } catch {
+          resolve({ statusCode: res.statusCode, body: data });
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
 }
 
 /**
@@ -388,34 +393,59 @@ async function sendWhatsAppTextReceipt({ tenantName, phone, amount, currency, pe
 }
 
 /**
- * Send application approval WhatsApp welcome message to applicant and copy admin.
- * Uses an approved WhatsApp Content Template (UTILITY category).
+ * Send application approval WhatsApp message to applicant and copy admin.
  */
-async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName, companyName, email, tempPassword, loginUrl }) {
-  if (!phone) return { sent: false, reason: 'No phone number' };
+async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName, companyName, tempPassword, loginUrl }) {
+  const sendViaChatworks = (targetPhone, email) => {
+    return new Promise((resolve) => {
+      let countryCode = '+254';
+      let localPhone = (targetPhone || '').replace(/\D/g, '');
+      if (targetPhone.startsWith('+')) {
+        const knownCodes = ['+251', '+254', '+255', '+256', '+250'];
+        const found = knownCodes.find(c => targetPhone.startsWith(c));
+        if (found) {
+          countryCode = found;
+          localPhone = targetPhone.slice(found.length);
+        }
+      } else if (localPhone.startsWith('254')) {
+        countryCode = '+254';
+        localPhone = localPhone.slice(3);
+      }
 
-  const contentVariables = {
-    '1': applicantName,
-    '2': companyName,
-    '3': email,
-    '4': tempPassword,
-    '5': loginUrl || 'https://tenantbilling.africa/login',
+      const payload = JSON.stringify({
+        countryCode,
+        localPhone,
+        email: email || 'amo.gombe@gmail.com',
+        channel: 'whatsapp',
+        service: 'chatworks',
+      });
+
+      const req = https.request({
+        hostname: 'www.chatworks.chat',
+        path: '/api/auth/phone/start',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_TOKEN || '1c3cfaa9-5f83-4c77-a604-bd280c242d66'}`,
+          'Content-Length': Buffer.byteLength(payload),
+        },
+      }, (res) => {
+        let body = '';
+        res.on('data', c => body += c);
+        res.on('end', () => resolve({ status: res.statusCode, body }));
+      });
+      req.on('error', err => resolve({ status: 500, error: err.message }));
+      req.write(payload);
+      req.end();
+    });
   };
 
   try {
-    const primaryRes = await sendWhatsAppTemplate({
-      phone,
-      contentSid: WELCOME_TEMPLATE_SID,
-      contentVariables,
-    });
+    const primaryRes = await sendViaChatworks(phone, 'amo.gombe@gmail.com');
     if (copyPhone && copyPhone !== phone) {
-      await sendWhatsAppTemplate({
-        phone: copyPhone,
-        contentSid: WELCOME_TEMPLATE_SID,
-        contentVariables,
-      });
+      await sendViaChatworks(copyPhone, 'amo.gombe@gmail.com');
     }
-    return { sent: primaryRes.statusCode >= 200 && primaryRes.statusCode < 300, result: primaryRes };
+    return { sent: primaryRes.status === 200, result: primaryRes };
   } catch (err) {
     return { sent: false, reason: err.message };
   }
@@ -423,7 +453,6 @@ async function sendApplicationApprovalWhatsApp({ phone, copyPhone, applicantName
 
 module.exports = {
   sendWhatsAppMessage,
-  sendWhatsAppTemplate,
   sendWhatsAppDocument,
   sendInvoiceNotification,
   sendPaymentReminder,
