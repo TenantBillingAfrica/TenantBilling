@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SystemAdminDashboard from '../dashboards/SystemAdminDashboard';
 import InstanceAdminDashboard from '../dashboards/InstanceAdminDashboard';
+import TenantStatementDashboard from '../dashboards/TenantStatementDashboard';
 
 const DashboardPage = () => {
   const { user, isAuthenticated } = useAuth();
@@ -17,6 +18,8 @@ const DashboardPage = () => {
     case 'instance_admin':
     case 'meter_reader':
       return <InstanceAdminDashboard />;
+    case 'tenant':
+      return <TenantStatementDashboard />;
     default:
       return <Navigate to="/login" replace />;
   }

@@ -1,11 +1,13 @@
 const { QueryCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
 const { docClient } = require('../lib/dynamo');
+const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, badRequest, unauthorized, serverError } = require('../lib/response');
 const { parseBody } = require('../lib/request');
 
 const TENANTS_TABLE = process.env.TENANTS_TABLE;
 const INVOICES_TABLE = process.env.INVOICES_TABLE;
 const PAYMENTS_TABLE = process.env.PAYMENTS_TABLE;
+const BUILDINGS_TABLE = process.env.BUILDINGS_TABLE;
 
 /**
  * Tenant self-service statements endpoint.
@@ -21,6 +23,9 @@ exports.handler = async (event) => {
   const path = event.rawPath;
 
   try {
+    if (method === 'GET' && path === '/tenant-portal/my-statement') {
+      return await getMyStatement(event);
+    }
     if (method === 'POST' && path === '/tenant-portal/request-otp') {
       return await requestOtp(event);
     }
@@ -36,6 +41,133 @@ exports.handler = async (event) => {
     return serverError('An unexpected error occurred');
   }
 };
+
+/**
+ * JWT-authenticated endpoint: GET /tenant-portal/my-statement
+ * Tenant logs in via Cognito, then fetches their own statement.
+ */
+async function getMyStatement(event) {
+  const claims = getClaims(event);
+  const denied = requireRole(claims, 'tenant');
+  if (denied) return denied;
+
+  const { startDate, endDate } = event.queryStringParameters || {};
+
+  // Find tenant by email
+  const tenantsResult = await docClient.send(new ScanCommand({
+    TableName: TENANTS_TABLE,
+    FilterExpression: 'email = :email',
+    ExpressionAttributeValues: { ':email': claims.email },
+    Limit: 10,
+  }));
+
+  const tenants = tenantsResult.Items || [];
+  if (tenants.length === 0) return badRequest('No tenant record found for this account');
+
+  const tenant = tenants[0];
+
+  // Look up building name
+  let buildingName = '';
+  if (tenant.buildingId && tenant.instanceId) {
+    try {
+      const buildingResult = await docClient.send(new QueryCommand({
+        TableName: BUILDINGS_TABLE,
+        KeyConditionExpression: 'instanceId = :iid AND id = :bid',
+        ExpressionAttributeValues: {
+          ':iid': tenant.instanceId,
+          ':bid': tenant.buildingId,
+        },
+      }));
+      if (buildingResult.Items && buildingResult.Items.length > 0) {
+        buildingName = buildingResult.Items[0].name || '';
+      }
+    } catch (err) {
+      console.error('Failed to look up building:', err.message);
+    }
+  }
+
+  // Get invoices for this tenant
+  const invoicesResult = await docClient.send(new QueryCommand({
+    TableName: INVOICES_TABLE,
+    IndexName: 'Tenant',
+    KeyConditionExpression: 'tenantId = :tid',
+    ExpressionAttributeValues: { ':tid': tenant.id },
+    ScanIndexForward: false,
+  }));
+
+  let invoices = invoicesResult.Items || [];
+
+  // Filter by date range
+  if (startDate) {
+    invoices = invoices.filter(inv => inv.createdAt >= startDate);
+  }
+  if (endDate) {
+    invoices = invoices.filter(inv => inv.createdAt <= endDate + 'T23:59:59.999Z');
+  }
+
+  // Constrain to tenancy period
+  if (tenant.createdAt) {
+    invoices = invoices.filter(inv => inv.createdAt >= tenant.createdAt);
+  }
+  if (tenant.vacatedAt) {
+    invoices = invoices.filter(inv => inv.createdAt <= tenant.vacatedAt);
+  }
+
+  // Get payments
+  const paymentsResult = await docClient.send(new QueryCommand({
+    TableName: PAYMENTS_TABLE,
+    KeyConditionExpression: 'instanceId = :iid',
+    ExpressionAttributeValues: { ':iid': tenant.instanceId },
+  }));
+
+  const paymentMap = {};
+  for (const p of (paymentsResult.Items || [])) {
+    if (p.status === 'completed') {
+      paymentMap[p.invoiceId] = p;
+    }
+  }
+
+  // Build statement
+  const statement = invoices.map(inv => ({
+    period: inv.period,
+    rent: inv.rent || 0,
+    serviceCharge: inv.serviceCharge || 0,
+    waterUsage: inv.waterUsage || 0,
+    waterCharge: inv.waterCharge || 0,
+    totalAmount: inv.totalAmount || 0,
+    status: inv.status,
+    createdAt: inv.createdAt,
+    paidAt: inv.paidAt || null,
+    payment: paymentMap[inv.id] ? {
+      amount: paymentMap[inv.id].amount,
+      date: paymentMap[inv.id].completedAt,
+      transactionId: paymentMap[inv.id].transactionId,
+    } : null,
+  }));
+
+  const totalBilled = statement.reduce((s, i) => s + i.totalAmount, 0);
+  const totalPaid = statement.filter(i => i.status === 'paid').reduce((s, i) => s + i.totalAmount, 0);
+  const balance = totalBilled - totalPaid;
+
+  return ok({
+    tenant: {
+      name: tenant.name,
+      unitNumber: tenant.unitNumber,
+      buildingId: tenant.buildingId,
+      buildingName,
+      moveInDate: tenant.createdAt,
+      vacatedAt: tenant.vacatedAt || null,
+      status: tenant.status || 'active',
+    },
+    statement,
+    summary: {
+      totalBilled,
+      totalPaid,
+      balance,
+      invoiceCount: statement.length,
+    },
+  });
+}
 
 /**
  * Step 1: Tenant requests OTP via their WhatsApp phone number.

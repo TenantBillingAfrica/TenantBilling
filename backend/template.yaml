@@ -526,6 +526,14 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref TenantsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+              Resource: !GetAtt UserPool.Arn
+      Environment:
+        Variables:
+          USER_POOL_ID: !Ref UserPool
       Events:
         List:
           Type: HttpApi
@@ -765,7 +773,7 @@ Resources:
             Path: /admin/settings/reveal
             Method: POST
 
-  # Tenant Self-Service Portal (public - OTP authenticated)
+  # Tenant Self-Service Portal (public OTP + JWT-authenticated routes)
   TenantPortalFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -780,7 +788,15 @@ Resources:
             TableName: !Ref InvoicesTable
         - DynamoDBCrudPolicy:
             TableName: !Ref PaymentsTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref BuildingsTable
       Events:
+        MyStatement:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenant-portal/my-statement
+            Method: GET
         RequestOtp:
           Type: HttpApi
           Properties:

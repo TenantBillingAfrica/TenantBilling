@@ -17,7 +17,7 @@ export const AuthProvider = ({ children }) => {
     if (!stored) return null;
     try {
       const parsed = JSON.parse(stored);
-      if (parsed.role === 'system_admin' && mfaVerified !== 'true') return null;
+      if ((parsed.role === 'system_admin' || parsed.role === 'tenant') && mfaVerified !== 'true') return null;
       return parsed;
     } catch (_) {
       return null;
@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
     if (!token || !stored) return false;
     try {
       const parsed = JSON.parse(stored);
-      if (parsed.role === 'system_admin' && mfaVerified !== 'true') return false;
+      if ((parsed.role === 'system_admin' || parsed.role === 'tenant') && mfaVerified !== 'true') return false;
       return true;
     } catch (_) {
       return false;
@@ -45,11 +45,11 @@ export const AuthProvider = ({ children }) => {
     getCurrentSession()
       .then((session) => {
         if (session) {
-          const isSystemAdmin = session.user?.role === 'system_admin';
+          const requiresMfa = session.user?.role === 'system_admin' || session.user?.role === 'tenant';
           const mfaVerified = localStorage.getItem('tb_mfa_verified') === 'true';
 
-          if (isSystemAdmin && !mfaVerified) {
-            // Clear unverified system admin session
+          if (requiresMfa && !mfaVerified) {
+            // Clear unverified session requiring MFA
             cognitoLogout();
             localStorage.removeItem('tb_id_token');
             localStorage.removeItem('tb_user');
@@ -105,9 +105,9 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      // Enforce 2FA for system admin accounts
-      const isSystemAdmin = result.user?.role === 'system_admin';
-      if (isSystemAdmin) {
+      // Enforce 2FA for system admin and tenant accounts
+      const requiresMfa = result.user?.role === 'system_admin' || result.user?.role === 'tenant';
+      if (requiresMfa) {
         setPendingChallenge({
           challengeName: 'MFA_REQUIRED',
           user: result.user,

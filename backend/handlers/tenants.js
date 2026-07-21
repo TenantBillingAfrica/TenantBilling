@@ -1,10 +1,12 @@
 const { PutCommand, QueryCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const { CognitoIdentityProviderClient, AdminCreateUserCommand } = require('@aws-sdk/client-cognito-identity-provider');
 const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, created, badRequest, serverError } = require('../lib/response');
-const { parseBody, validateFields, isValidEmail, isValidPhone, isNonNegativeNumber } = require('../lib/request');
+const { parseBody, validateFields, isValidEmail, isValidPhone, isNonNegativeNumber, generateTempPassword } = require('../lib/request');
 
+const cognito = new CognitoIdentityProviderClient({});
 const TABLE = process.env.TENANTS_TABLE;
 
 exports.handler = async (event) => {
@@ -21,7 +23,7 @@ exports.handler = async (event) => {
       case 'GET':
         return await list(instanceId, event);
       case 'POST':
-        return await create(instanceId, event);
+        return await create(instanceId, claims, event);
       case 'PUT':
         return await update(instanceId, event);
       case 'DELETE':
@@ -61,7 +63,7 @@ async function list(instanceId, event) {
   return ok(result.Items || []);
 }
 
-async function create(instanceId, event) {
+async function create(instanceId, claims, event) {
   const body = parseBody(event);
   if (!body) return badRequest('Invalid JSON in request body');
 
@@ -99,6 +101,34 @@ async function create(instanceId, event) {
   };
 
   await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
+
+  // Create Cognito user for tenant login (skip if no email)
+  if (email && process.env.USER_POOL_ID) {
+    try {
+      const tempPassword = generateTempPassword();
+      const userAttributes = [
+        { Name: 'email', Value: email },
+        { Name: 'email_verified', Value: 'true' },
+        { Name: 'custom:role', Value: 'tenant' },
+        { Name: 'custom:instanceId', Value: instanceId },
+        { Name: 'custom:instanceName', Value: claims.instanceName || '' },
+      ];
+      if (phone) {
+        userAttributes.push({ Name: 'phone_number', Value: phone });
+      }
+      await cognito.send(new AdminCreateUserCommand({
+        UserPoolId: process.env.USER_POOL_ID,
+        Username: email,
+        TemporaryPassword: tempPassword,
+        UserAttributes: userAttributes,
+        DesiredDeliveryMediums: ['EMAIL'],
+      }));
+    } catch (cognitoErr) {
+      // Log but don't fail tenant creation if Cognito fails
+      console.error('Failed to create Cognito user for tenant:', cognitoErr.message);
+    }
+  }
+
   return created(item);
 }
 
