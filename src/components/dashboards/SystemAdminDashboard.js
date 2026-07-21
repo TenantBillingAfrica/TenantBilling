@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Users, TrendingUp, DollarSign, Settings,
-  CheckCircle, XCircle, Clock, Building2, Loader, RefreshCw, AlertCircle, ShieldCheck
+  CheckCircle, XCircle, Clock, Building2, Loader, RefreshCw, AlertCircle, ShieldCheck,
+  CreditCard, Eye, EyeOff, Save, Shield
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 import { listApplications, approveApplication, rejectApplication, suspendApplication } from '../../services/applications.service';
+import { getSettings, saveSettings } from '../../services/settings.service';
+import { sendWhatsAppOtp, verifyWhatsAppOtp } from '../../services/whatsapp.service';
 import api from '../../services/api';
 
 const TABS = [
@@ -24,6 +28,7 @@ const STAT_GRADIENTS = [
 
 const SystemAdminDashboard = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [applications, setApplications] = useState([]);
   const [stats, setStats] = useState(null);
@@ -31,6 +36,18 @@ const SystemAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(null);
+
+  // Settings state
+  const [settingsData, setSettingsData] = useState(null);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpSession, setOtpSession] = useState(null);
+  const [showTokens, setShowTokens] = useState({});
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -66,6 +83,86 @@ const SystemAdminDashboard = () => {
   useEffect(() => {
     if (activeTab === 'pnl' && !pnl) fetchPnl();
   }, [activeTab, pnl, fetchPnl]);
+
+  const fetchSettings = useCallback(async () => {
+    setSettingsLoading(true);
+    setSettingsError('');
+    try {
+      const data = await getSettings();
+      setSettingsData(data);
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+      setSettingsError(err.response?.data?.error || err.message || 'Failed to fetch settings');
+    } finally {
+      setSettingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'settings' && !settingsData) fetchSettings();
+  }, [activeTab, settingsData, fetchSettings]);
+
+  const handleSettingsField = (gateway, field, value) => {
+    setSettingsData(prev => ({
+      ...prev,
+      [gateway]: { ...prev[gateway], [field]: value },
+    }));
+  };
+
+  const handleSaveClick = async () => {
+    setOtpError('');
+    setOtpCode('');
+    setOtpSending(true);
+    try {
+      const phone = user?.phone || '';
+      const email = user?.email || '';
+      if (!phone && !email) {
+        setOtpError('No phone or email found for OTP verification');
+        setOtpSending(false);
+        return;
+      }
+      const session = await sendWhatsAppOtp(phone, email);
+      setOtpSession(session);
+      setShowOtpModal(true);
+    } catch (err) {
+      setOtpError(err.message || 'Failed to send OTP');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleOtpConfirm = async () => {
+    if (otpCode.length !== 6) {
+      setOtpError('Please enter a 6-digit code');
+      return;
+    }
+    setOtpError('');
+    setSettingsSaving(true);
+    try {
+      const phone = user?.phone || '';
+      await verifyWhatsAppOtp({
+        token: otpSession?.token,
+        emailToken: otpSession?.emailToken || null,
+        code: otpCode,
+        phone,
+      });
+      await saveSettings(settingsData);
+      setShowOtpModal(false);
+      setOtpCode('');
+      setOtpSession(null);
+    } catch (err) {
+      setOtpError(err.message || 'Verification failed');
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleOtpCancel = () => {
+    setShowOtpModal(false);
+    setOtpCode('');
+    setOtpError('');
+    setOtpSession(null);
+  };
 
   const handleApprove = async (id) => {
     setActionLoading(id);
@@ -354,7 +451,6 @@ const SystemAdminDashboard = () => {
 
             {activeTab === 'performance' && (
               <>
-                <h2 className="text-2xl font-extrabold text-navy-800 mb-8 tracking-tight">{t('admin_performance')}</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   {[
                     { label: 'Uptime', value: '99.9%', gradient: 'from-emerald-400 to-teal-500', icon: CheckCircle },
@@ -411,28 +507,164 @@ const SystemAdminDashboard = () => {
 
             {activeTab === 'settings' && (
               <>
-                <h2 className="text-2xl font-extrabold text-navy-800 mb-8 tracking-tight">{t('admin_settings')}</h2>
-                <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8 max-w-lg">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                      <Settings size={18} className="text-white" />
-                    </div>
-                    <p className="text-sm font-bold text-navy-800">Payment Gateway Configuration</p>
+                {settingsLoading ? (
+                  <div className="flex items-center justify-center h-64">
+                    <Loader size={32} className="text-purple-400 animate-spin" />
                   </div>
-                  {['ChatWorks API Token', 'Collections URL', 'Callback URL'].map((field) => (
-                    <div key={field} className="mb-5">
-                      <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{field}</label>
-                      <input
-                        type={field.includes('Token') ? 'password' : 'text'}
-                        placeholder={`Enter ${field.toLowerCase()}`}
-                        className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all"
-                      />
+                ) : settingsError ? (
+                  <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl flex items-center justify-between text-xs text-red-700">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle size={16} className="text-red-500 shrink-0" />
+                      <span>{settingsError}</span>
                     </div>
-                  ))}
-                  <button className="px-8 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all">
-                    {t('save')}
-                  </button>
-                </div>
+                    <button onClick={fetchSettings} className="px-3 py-1 bg-red-600 text-white font-bold rounded-lg border-none cursor-pointer hover:bg-red-700">
+                      Retry
+                    </button>
+                  </div>
+                ) : settingsData && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* PawaPay Card */}
+                    <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                          <CreditCard size={18} className="text-white" />
+                        </div>
+                        <p className="text-sm font-bold text-navy-800">PawaPay Configuration</p>
+                      </div>
+                      {[
+                        { key: 'apiToken', label: 'API Token', sensitive: true },
+                        { key: 'collectionsUrl', label: 'Collections URL', sensitive: false },
+                        { key: 'callbackUrl', label: 'Callback URL', sensitive: false },
+                      ].map(({ key, label, sensitive }) => (
+                        <div key={key} className="mb-5">
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
+                          <div className="relative">
+                            <input
+                              type={sensitive && !showTokens[`pawapay_${key}`] ? 'password' : 'text'}
+                              value={settingsData.pawapay?.[key] || ''}
+                              onChange={(e) => handleSettingsField('pawapay', key, e.target.value)}
+                              placeholder={`Enter ${label.toLowerCase()}`}
+                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all pr-10"
+                            />
+                            {sensitive && (
+                              <button
+                                type="button"
+                                onClick={() => setShowTokens(prev => ({ ...prev, [`pawapay_${key}`]: !prev[`pawapay_${key}`] }))}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 bg-transparent border-none cursor-pointer"
+                              >
+                                {showTokens[`pawapay_${key}`] ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Stripe Card */}
+                    <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+                          <CreditCard size={18} className="text-white" />
+                        </div>
+                        <p className="text-sm font-bold text-navy-800">Stripe Configuration</p>
+                      </div>
+                      {[
+                        { key: 'publishableKey', label: 'Publishable Key', sensitive: true },
+                        { key: 'secretKey', label: 'Secret Key', sensitive: true },
+                      ].map(({ key, label, sensitive }) => (
+                        <div key={key} className="mb-5">
+                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
+                          <div className="relative">
+                            <input
+                              type={sensitive && !showTokens[`stripe_${key}`] ? 'password' : 'text'}
+                              value={settingsData.stripe?.[key] || ''}
+                              onChange={(e) => handleSettingsField('stripe', key, e.target.value)}
+                              placeholder={`Enter ${label.toLowerCase()}`}
+                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all pr-10"
+                            />
+                            {sensitive && (
+                              <button
+                                type="button"
+                                onClick={() => setShowTokens(prev => ({ ...prev, [`stripe_${key}`]: !prev[`stripe_${key}`] }))}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 bg-transparent border-none cursor-pointer"
+                              >
+                                {showTokens[`stripe_${key}`] ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Save button - full width below cards */}
+                    <div className="lg:col-span-2 flex justify-end">
+                      <button
+                        onClick={handleSaveClick}
+                        disabled={otpSending}
+                        className="flex items-center gap-2 px-8 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all disabled:opacity-50"
+                      >
+                        {otpSending ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                        {otpSending ? 'Sending OTP...' : 'Save Settings'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* OTP Verification Modal */}
+                {showOtpModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
+                      <div className="flex items-center gap-3 mb-6">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                          <Shield size={18} className="text-white" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-navy-800">OTP Verification</p>
+                          <p className="text-xs text-gray-400">Enter the 6-digit code sent to your phone</p>
+                        </div>
+                      </div>
+
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={otpCode}
+                        onChange={(e) => {
+                          const val = e.target.value.replace(/\D/g, '');
+                          setOtpCode(val);
+                          setOtpError('');
+                        }}
+                        placeholder="000000"
+                        className="w-full px-4 py-4 border border-gray-200 text-2xl text-center font-mono text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all tracking-[0.5em] mb-4"
+                        autoFocus
+                      />
+
+                      {otpError && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs text-red-700">
+                          <AlertCircle size={14} className="text-red-500 shrink-0" />
+                          <span>{otpError}</span>
+                        </div>
+                      )}
+
+                      <div className="flex gap-3">
+                        <button
+                          onClick={handleOtpCancel}
+                          disabled={settingsSaving}
+                          className="flex-1 px-4 py-3 bg-gray-100 text-gray-600 text-sm font-bold rounded-xl border-none cursor-pointer hover:bg-gray-200 transition-all disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleOtpConfirm}
+                          disabled={settingsSaving || otpCode.length !== 6}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-xl border-none cursor-pointer hover:bg-sunshine-500 transition-all disabled:opacity-50"
+                        >
+                          {settingsSaving ? <Loader size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                          {settingsSaving ? 'Saving...' : 'Confirm & Save'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </>

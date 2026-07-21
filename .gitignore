@@ -24,6 +24,7 @@
 # SAM build artifacts
 backend/.aws-sam/
 backend/node_modules/
+backend/lambda-deploy.zip
 
 npm-debug.log*
 yarn-debug.log*

@@ -17,6 +17,7 @@ Globals:
         PAYMENTS_TABLE: !Ref PaymentsTable
         METER_READINGS_TABLE: !Ref MeterReadingsTable
         USERS_TABLE: !Ref UsersTable
+        SETTINGS_TABLE: !Ref SettingsTable
         CHATWORKS_API_TOKEN: '1c3cfaa9-5f83-4c77-a604-bd280c242d66'
         CHATWORKS_COLLECTIONS_URL: 'https://api.chatworks.chat/collections'
         CHATWORKS_CALLBACK_URL: 'https://www.chatworks.chat/api/pawapay/callback'
@@ -325,6 +326,18 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+
+  SettingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: TB_Settings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
 
   # ─── Lambda Functions ──────────────────────────────────────
 
@@ -718,6 +731,30 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/pnl
             Method: GET
+
+  # Admin Settings
+  AdminSettingsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: TB-AdminSettings
+      Handler: handlers/admin-settings-crud.handler
+      CodeUri: .
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref SettingsTable
+      Events:
+        GetSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/settings
+            Method: GET
+        PutSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/settings
+            Method: PUT
 
   # Tenant Self-Service Portal (public - OTP authenticated)
   TenantPortalFunction:
