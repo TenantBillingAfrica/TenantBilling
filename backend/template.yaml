@@ -21,6 +21,9 @@ Globals:
         CHATWORKS_API_TOKEN: '1c3cfaa9-5f83-4c77-a604-bd280c242d66'
         CHATWORKS_COLLECTIONS_URL: 'https://api.chatworks.chat/collections'
         CHATWORKS_CALLBACK_URL: 'https://www.chatworks.chat/api/pawapay/callback'
+        CHATWORKS_ADMIN_PHONE: '+254717124662'
+        STRIPE_PUBLISHABLE_KEY: '{{resolve:ssm:/tenantbilling/stripe/publishablekey}}'
+        STRIPE_RESTRICTED_KEY: '{{resolve:ssm:/tenantbilling/stripe/restrictedkey}}'
         SES_FROM_EMAIL: 'no-reply@chatworks.chat'
         TWILIO_ACCOUNT_SID: '{{resolve:ssm:/tenantbilling/twilio/accountsid}}'
         TWILIO_AUTH_TOKEN: '{{resolve:ssm:/tenantbilling/twilio/authtoken}}'
@@ -755,6 +758,12 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/settings
             Method: PUT
+        RevealSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/settings/reveal
+            Method: POST
 
   # Tenant Self-Service Portal (public - OTP authenticated)
   TenantPortalFunction:

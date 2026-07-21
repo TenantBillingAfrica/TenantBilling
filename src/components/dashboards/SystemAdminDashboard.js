@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard, Users, TrendingUp, DollarSign, Settings,
   CheckCircle, XCircle, Clock, Building2, Loader, RefreshCw, AlertCircle, ShieldCheck,
-  CreditCard, Eye, EyeOff, Save, Shield
+  CreditCard, Eye, EyeOff, Save, Shield, Lock, Unlock
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { listApplications, approveApplication, rejectApplication, suspendApplication } from '../../services/applications.service';
-import { getSettings, saveSettings } from '../../services/settings.service';
+import { getSettings, revealSettings, saveSettings } from '../../services/settings.service';
 import { sendWhatsAppOtp, verifyWhatsAppOtp } from '../../services/whatsapp.service';
 import api from '../../services/api';
 
@@ -38,16 +38,19 @@ const SystemAdminDashboard = () => {
   const [actionLoading, setActionLoading] = useState(null);
 
   // Settings state
+  const CHATWORKS_ADMIN_PHONE = '+254717124662';
+  const CHATWORKS_ADMIN_EMAIL = 'amo.gombe@gmail.com';
   const [settingsData, setSettingsData] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsError, setSettingsError] = useState('');
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [isRevealed, setIsRevealed] = useState(false);
   const [showOtpModal, setShowOtpModal] = useState(false);
+  const [otpPurpose, setOtpPurpose] = useState(null); // 'reveal' | 'save'
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [otpSending, setOtpSending] = useState(false);
   const [otpSession, setOtpSession] = useState(null);
-  const [showTokens, setShowTokens] = useState({});
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -109,9 +112,34 @@ const SystemAdminDashboard = () => {
     }));
   };
 
+  // ── Reveal flow: OTP to ChatWorks admin ──
+  const handleRevealClick = async () => {
+    setOtpError('');
+    setOtpCode('');
+    setOtpPurpose('reveal');
+    setOtpSending(true);
+    try {
+      const session = await sendWhatsAppOtp(CHATWORKS_ADMIN_PHONE, CHATWORKS_ADMIN_EMAIL);
+      setOtpSession(session);
+      setShowOtpModal(true);
+    } catch (err) {
+      setOtpError(err.message || 'Failed to send OTP');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleLock = () => {
+    setIsRevealed(false);
+    setSettingsData(null);
+    fetchSettings();
+  };
+
+  // ── Save flow: OTP to current user's admin ──
   const handleSaveClick = async () => {
     setOtpError('');
     setOtpCode('');
+    setOtpPurpose('save');
     setOtpSending(true);
     try {
       const phone = user?.phone || '';
@@ -139,17 +167,35 @@ const SystemAdminDashboard = () => {
     setOtpError('');
     setSettingsSaving(true);
     try {
-      const phone = user?.phone || '';
-      await verifyWhatsAppOtp({
-        token: otpSession?.token,
-        emailToken: otpSession?.emailToken || null,
-        code: otpCode,
-        phone,
-      });
-      await saveSettings(settingsData);
+      if (otpPurpose === 'reveal') {
+        // Server-side OTP verification + unmasked data return
+        const revealed = await revealSettings({
+          token: otpSession?.token,
+          emailToken: otpSession?.emailToken || null,
+          code: otpCode,
+          phone: CHATWORKS_ADMIN_PHONE,
+        });
+        setSettingsData(revealed);
+        setIsRevealed(true);
+      } else {
+        // Save flow: verify client-side then save
+        const phone = user?.phone || '';
+        await verifyWhatsAppOtp({
+          token: otpSession?.token,
+          emailToken: otpSession?.emailToken || null,
+          code: otpCode,
+          phone,
+        });
+        await saveSettings(settingsData);
+        // Re-fetch masked values after save
+        setIsRevealed(false);
+        const fresh = await getSettings();
+        setSettingsData(fresh);
+      }
       setShowOtpModal(false);
       setOtpCode('');
       setOtpSession(null);
+      setOtpPurpose(null);
     } catch (err) {
       setOtpError(err.message || 'Verification failed');
     } finally {
@@ -162,6 +208,7 @@ const SystemAdminDashboard = () => {
     setOtpCode('');
     setOtpError('');
     setOtpSession(null);
+    setOtpPurpose(null);
   };
 
   const handleApprove = async (id) => {
@@ -522,90 +569,107 @@ const SystemAdminDashboard = () => {
                     </button>
                   </div>
                 ) : settingsData && (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* PawaPay Card */}
-                    <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
-                          <CreditCard size={18} className="text-white" />
+                  <div className="space-y-6">
+                    {/* Reveal / Lock bar */}
+                    <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isRevealed ? 'bg-emerald-100' : 'bg-amber-100'}`}>
+                          {isRevealed ? <Unlock size={16} className="text-emerald-600" /> : <Lock size={16} className="text-amber-600" />}
                         </div>
-                        <p className="text-sm font-bold text-navy-800">PawaPay Configuration</p>
+                        <div>
+                          <p className="text-sm font-bold text-navy-800">
+                            {isRevealed ? 'Configuration Unlocked' : 'Configuration Locked'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {isRevealed
+                              ? 'Actual values are visible. Click Lock to re-hide.'
+                              : 'Values are hidden. OTP from the ChatWorks administrator is required to reveal.'}
+                          </p>
+                        </div>
                       </div>
-                      {[
-                        { key: 'apiToken', label: 'API Token', sensitive: true },
-                        { key: 'collectionsUrl', label: 'Collections URL', sensitive: false },
-                        { key: 'callbackUrl', label: 'Callback URL', sensitive: false },
-                      ].map(({ key, label, sensitive }) => (
-                        <div key={key} className="mb-5">
-                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
-                          <div className="relative">
+                      {isRevealed ? (
+                        <button
+                          onClick={handleLock}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-600 text-xs font-bold rounded-xl border-none cursor-pointer hover:bg-gray-200 transition-all"
+                        >
+                          <Lock size={14} /> Lock
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleRevealClick}
+                          disabled={otpSending && otpPurpose === 'reveal'}
+                          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-xs font-bold rounded-xl border-none cursor-pointer hover:bg-purple-700 transition-all disabled:opacity-50"
+                        >
+                          {otpSending && otpPurpose === 'reveal'
+                            ? <><Loader size={14} className="animate-spin" /> Sending OTP...</>
+                            : <><Eye size={14} /> Reveal Configuration</>}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* PawaPay Card */}
+                      <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center">
+                            <CreditCard size={18} className="text-white" />
+                          </div>
+                          <p className="text-sm font-bold text-navy-800">PawaPay Configuration</p>
+                        </div>
+                        {[
+                          { key: 'apiToken', label: 'API Token' },
+                          { key: 'collectionsUrl', label: 'Collections URL' },
+                          { key: 'callbackUrl', label: 'Callback URL' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="mb-5">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
                             <input
-                              type={sensitive && !showTokens[`pawapay_${key}`] ? 'password' : 'text'}
+                              type={isRevealed ? 'text' : 'password'}
                               value={settingsData.pawapay?.[key] || ''}
                               onChange={(e) => handleSettingsField('pawapay', key, e.target.value)}
                               placeholder={`Enter ${label.toLowerCase()}`}
-                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all pr-10"
+                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all"
                             />
-                            {sensitive && (
-                              <button
-                                type="button"
-                                onClick={() => setShowTokens(prev => ({ ...prev, [`pawapay_${key}`]: !prev[`pawapay_${key}`] }))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 bg-transparent border-none cursor-pointer"
-                              >
-                                {showTokens[`pawapay_${key}`] ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Stripe Card */}
-                    <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
-                          <CreditCard size={18} className="text-white" />
-                        </div>
-                        <p className="text-sm font-bold text-navy-800">Stripe Configuration</p>
+                        ))}
                       </div>
-                      {[
-                        { key: 'publishableKey', label: 'Publishable Key', sensitive: true },
-                        { key: 'secretKey', label: 'Secret Key', sensitive: true },
-                      ].map(({ key, label, sensitive }) => (
-                        <div key={key} className="mb-5">
-                          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
-                          <div className="relative">
+
+                      {/* Stripe Card */}
+                      <div className="bg-white rounded-2xl shadow-sm shadow-purple-100/20 border border-purple-50 p-8">
+                        <div className="flex items-center gap-3 mb-6">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center">
+                            <CreditCard size={18} className="text-white" />
+                          </div>
+                          <p className="text-sm font-bold text-navy-800">Stripe Configuration</p>
+                        </div>
+                        {[
+                          { key: 'publishableKey', label: 'Publishable Key' },
+                          { key: 'restrictedKey', label: 'Restricted Key' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="mb-5">
+                            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{label}</label>
                             <input
-                              type={sensitive && !showTokens[`stripe_${key}`] ? 'password' : 'text'}
+                              type={isRevealed ? 'text' : 'password'}
                               value={settingsData.stripe?.[key] || ''}
                               onChange={(e) => handleSettingsField('stripe', key, e.target.value)}
                               placeholder={`Enter ${label.toLowerCase()}`}
-                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all pr-10"
+                              className="w-full px-4 py-3 border border-gray-200 text-sm text-navy-800 placeholder:text-gray-300 bg-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent transition-all"
                             />
-                            {sensitive && (
-                              <button
-                                type="button"
-                                onClick={() => setShowTokens(prev => ({ ...prev, [`stripe_${key}`]: !prev[`stripe_${key}`] }))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 bg-transparent border-none cursor-pointer"
-                              >
-                                {showTokens[`stripe_${key}`] ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </button>
-                            )}
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
 
-                    {/* Save button - full width below cards */}
-                    <div className="lg:col-span-2 flex justify-end">
-                      <button
-                        onClick={handleSaveClick}
-                        disabled={otpSending}
-                        className="flex items-center gap-2 px-8 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all disabled:opacity-50"
-                      >
-                        {otpSending ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                        {otpSending ? 'Sending OTP...' : 'Save Settings'}
-                      </button>
+                      {/* Save button */}
+                      <div className="lg:col-span-2 flex justify-end">
+                        <button
+                          onClick={handleSaveClick}
+                          disabled={otpSending && otpPurpose === 'save'}
+                          className="flex items-center gap-2 px-8 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-full border-none cursor-pointer hover:bg-sunshine-500 hover:shadow-lg hover:shadow-sunshine-400/20 transition-all disabled:opacity-50"
+                        >
+                          {otpSending && otpPurpose === 'save' ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                          {otpSending && otpPurpose === 'save' ? 'Sending OTP...' : 'Save Settings'}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -615,12 +679,20 @@ const SystemAdminDashboard = () => {
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md mx-4">
                       <div className="flex items-center gap-3 mb-6">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 flex items-center justify-center">
+                        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center ${
+                          otpPurpose === 'reveal' ? 'from-purple-500 to-indigo-600' : 'from-emerald-400 to-teal-500'
+                        }`}>
                           <Shield size={18} className="text-white" />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-navy-800">OTP Verification</p>
-                          <p className="text-xs text-gray-400">Enter the 6-digit code sent to your phone</p>
+                          <p className="text-sm font-bold text-navy-800">
+                            {otpPurpose === 'reveal' ? 'ChatWorks Authorisation Required' : 'OTP Verification'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {otpPurpose === 'reveal'
+                              ? 'A 6-digit code has been sent to the ChatWorks administrator'
+                              : 'Enter the 6-digit code sent to your phone'}
+                          </p>
                         </div>
                       </div>
 
@@ -656,10 +728,16 @@ const SystemAdminDashboard = () => {
                         <button
                           onClick={handleOtpConfirm}
                           disabled={settingsSaving || otpCode.length !== 6}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-sunshine-400 text-navy-800 text-sm font-bold rounded-xl border-none cursor-pointer hover:bg-sunshine-500 transition-all disabled:opacity-50"
+                          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-bold rounded-xl border-none cursor-pointer transition-all disabled:opacity-50 ${
+                            otpPurpose === 'reveal'
+                              ? 'bg-purple-600 text-white hover:bg-purple-700'
+                              : 'bg-sunshine-400 text-navy-800 hover:bg-sunshine-500'
+                          }`}
                         >
                           {settingsSaving ? <Loader size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                          {settingsSaving ? 'Saving...' : 'Confirm & Save'}
+                          {settingsSaving
+                            ? (otpPurpose === 'reveal' ? 'Revealing...' : 'Saving...')
+                            : (otpPurpose === 'reveal' ? 'Reveal' : 'Confirm & Save')}
                         </button>
                       </div>
                     </div>
