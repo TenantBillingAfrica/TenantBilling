@@ -380,7 +380,6 @@ const SystemAdminDashboard = () => {
 
             {activeTab === 'pnl' && (
               <>
-                <h2 className="text-2xl font-extrabold text-navy-800 mb-8 tracking-tight">{t('admin_pnl')}</h2>
                 {pnl ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                     {[
