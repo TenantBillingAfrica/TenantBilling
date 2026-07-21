@@ -65,11 +65,11 @@ async function create(instanceId, event) {
   const body = parseBody(event);
   if (!body) return badRequest('Invalid JSON in request body');
 
-  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber'];
+  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber', 'idNumber', 'kraPin', 'postalAddress', 'vacationNotice', 'leaseEndDate'];
   const invalid = validateFields(body, allowedFields);
   if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
 
-  const { name, email, phone, buildingId, unitNumber, rent, serviceCharge, meterNumber } = body;
+  const { name, email, phone, buildingId, unitNumber, rent, serviceCharge, meterNumber, idNumber, kraPin, postalAddress, vacationNotice, leaseEndDate } = body;
 
   if (!name || !buildingId) return badRequest('Name and buildingId are required');
 
@@ -89,6 +89,11 @@ async function create(instanceId, event) {
     rent: rent || 0,
     serviceCharge: serviceCharge || 0,
     meterNumber: meterNumber || '',
+    idNumber: idNumber || '',
+    kraPin: kraPin || '',
+    postalAddress: postalAddress || '',
+    vacationNotice: vacationNotice || '',
+    leaseEndDate: leaseEndDate || '',
     status: 'active',
     createdAt: new Date().toISOString(),
   };
@@ -102,7 +107,7 @@ async function update(instanceId, event) {
   const body = parseBody(event);
   if (!body) return badRequest('Invalid JSON in request body');
 
-  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber', 'status'];
+  const allowedFields = ['name', 'email', 'phone', 'buildingId', 'unitNumber', 'rent', 'serviceCharge', 'meterNumber', 'status', 'idNumber', 'kraPin', 'postalAddress', 'vacationNotice', 'leaseEndDate'];
   const invalid = validateFields(body, allowedFields);
   if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
 
