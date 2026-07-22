@@ -821,6 +821,14 @@ Resources:
             Method: POST
             Auth:
               Authorizer: NONE
+        PayMpesa:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tenant-portal/pay-mpesa
+            Method: GET
+            Auth:
+              Authorizer: NONE
 
   # Notifications (manual triggers from admin dashboard)
   NotificationsFunction:

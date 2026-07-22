@@ -231,6 +231,7 @@ async function handleCallback(event) {
             tenantName: tenant?.name || invoice.tenantName || 'Tenant',
             phone: payment.phone || tenant?.phone,
             email: tenant?.email,
+            cc: invoice.ccEmail || null,
             amount: payment.amount,
             currency: payment.currency || 'KES',
             period: invoice.period,

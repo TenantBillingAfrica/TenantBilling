@@ -7,12 +7,12 @@ const CALLBACK_URL = process.env.CHATWORKS_CALLBACK_URL;
 /**
  * Initiate a mobile money collection via ChatWorks/PawaPay.
  */
-function initiateCollection({ transactionId, phone, amount, currency, description }) {
+function initiateCollection({ transactionId, phone, amount, currency, correspondent, description }) {
   const payload = JSON.stringify({
     depositId: transactionId,
     amount: String(amount),
     currency,
-    correspondent: 'MTN_MOMO_UGD',
+    correspondent: correspondent || 'MTN_MOMO_UGD',
     payer: {
       type: 'MSISDN',
       address: { value: phone },

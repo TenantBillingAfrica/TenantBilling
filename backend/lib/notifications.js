@@ -101,7 +101,7 @@ function sendWhatsAppDocument({ phone, pdfBuffer, filename, caption }) {
  */
 async function sendInvoiceNotification(params) {
   const {
-    tenantName, phone, email, period, rent, serviceCharge,
+    tenantName, phone, email, cc, period, rent, serviceCharge,
     waterUsage, waterCharge, totalAmount, currency,
     instanceName, unitNumber, buildingName, invoiceId, createdAt,
   } = params;
@@ -170,6 +170,7 @@ async function sendInvoiceNotification(params) {
     try {
       await sendInvoiceEmail({
         to: email,
+        cc,
         tenantName,
         period,
         totalAmount: totalAmount || 0,
@@ -277,7 +278,7 @@ async function sendMeterReadingReminder({ staffName, phone, unreadCount, buildin
  */
 async function sendPaymentReceipt(params) {
   const {
-    tenantName, phone, email, amount, currency, period,
+    tenantName, phone, email, cc, amount, currency, period,
     transactionId, paidAt, instanceName, unitNumber, buildingName, invoiceId,
   } = params;
 
@@ -339,6 +340,7 @@ async function sendPaymentReceipt(params) {
     try {
       await sendReceiptEmail({
         to: email,
+        cc,
         tenantName,
         period,
         amount: amount || 0,

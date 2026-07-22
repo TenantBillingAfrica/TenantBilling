@@ -1,8 +1,10 @@
-const { QueryCommand, ScanCommand } = require('@aws-sdk/lib-dynamodb');
+const { QueryCommand, ScanCommand, PutCommand, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
 const { setEvent, ok, badRequest, unauthorized, serverError } = require('../lib/response');
 const { parseBody } = require('../lib/request');
+const { initiateCollection } = require('../lib/payments');
 
 const TENANTS_TABLE = process.env.TENANTS_TABLE;
 const INVOICES_TABLE = process.env.INVOICES_TABLE;
@@ -25,6 +27,9 @@ exports.handler = async (event) => {
   try {
     if (method === 'GET' && path === '/tenant-portal/my-statement') {
       return await getMyStatement(event);
+    }
+    if (method === 'GET' && path === '/tenant-portal/pay-mpesa') {
+      return await payMpesa(event);
     }
     if (method === 'POST' && path === '/tenant-portal/request-otp') {
       return await requestOtp(event);
@@ -434,4 +439,160 @@ async function getStatement(event) {
       invoiceCount: statement.length,
     },
   });
+}
+
+/**
+ * GET /tenant-portal/pay-mpesa?invoiceId=xxx
+ * Unauthenticated — triggered from email payment link.
+ * Looks up invoice → tenant → creates payment → initiates M-Pesa STK push.
+ * Returns a simple HTML page confirming prompt was sent.
+ */
+async function payMpesa(event) {
+  const invoiceId = event.queryStringParameters?.invoiceId;
+  if (!invoiceId) {
+    return htmlResponse(400, 'Missing Invoice', 'No invoice ID provided. Please use the link from your email.');
+  }
+
+  // We need to scan for the invoice since we only have the id (no instanceId from an unauthenticated request)
+  let invoiceScan = await docClient.send(new ScanCommand({
+    TableName: INVOICES_TABLE,
+    FilterExpression: 'id = :id',
+    ExpressionAttributeValues: { ':id': invoiceId },
+  }));
+
+  // Paginate if needed
+  while (invoiceScan.Items.length === 0 && invoiceScan.LastEvaluatedKey) {
+    invoiceScan = await docClient.send(new ScanCommand({
+      TableName: INVOICES_TABLE,
+      FilterExpression: 'id = :id',
+      ExpressionAttributeValues: { ':id': invoiceId },
+      ExclusiveStartKey: invoiceScan.LastEvaluatedKey,
+    }));
+  }
+
+  const invoice = (invoiceScan.Items || [])[0];
+  if (!invoice) {
+    return htmlResponse(404, 'Invoice Not Found', 'This invoice could not be found. It may have been removed.');
+  }
+
+  if (invoice.status === 'paid') {
+    return htmlResponse(200, 'Already Paid', `This invoice for KES ${(invoice.totalAmount || 0).toLocaleString()} has already been paid. Thank you!`);
+  }
+
+  // Get tenant for phone number
+  const tenantResult = await docClient.send(new QueryCommand({
+    TableName: TENANTS_TABLE,
+    KeyConditionExpression: 'instanceId = :iid AND id = :tid',
+    ExpressionAttributeValues: {
+      ':iid': invoice.instanceId,
+      ':tid': invoice.tenantId,
+    },
+  }));
+
+  const tenant = (tenantResult.Items || [])[0];
+  if (!tenant || !tenant.phone) {
+    return htmlResponse(400, 'Payment Error', 'Could not find tenant phone number for M-Pesa payment.');
+  }
+
+  // Check if there's already a pending payment for this invoice
+  const existingPayments = await docClient.send(new QueryCommand({
+    TableName: PAYMENTS_TABLE,
+    IndexName: 'Invoice',
+    KeyConditionExpression: 'invoiceId = :iid',
+    ExpressionAttributeValues: { ':iid': invoiceId },
+  }));
+
+  const pendingPayment = (existingPayments.Items || []).find(p => p.status === 'pending');
+  if (pendingPayment) {
+    return htmlResponse(200, 'Payment Prompt Sent',
+      `An M-Pesa payment prompt for KES ${(invoice.totalAmount || 0).toLocaleString()} has already been sent to ${maskPhone(tenant.phone)}. Please check your phone and enter your M-Pesa PIN to complete payment.`);
+  }
+
+  // Create payment record
+  const transactionId = uuid();
+  const payment = {
+    instanceId: invoice.instanceId,
+    id: uuid(),
+    invoiceId,
+    transactionId,
+    phone: tenant.phone,
+    amount: invoice.totalAmount,
+    currency: 'KES',
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  };
+
+  await docClient.send(new PutCommand({ TableName: PAYMENTS_TABLE, Item: payment }));
+
+  // Initiate M-Pesa STK push
+  try {
+    const result = await initiateCollection({
+      transactionId,
+      phone: tenant.phone,
+      amount: invoice.totalAmount,
+      currency: 'KES',
+      correspondent: 'MPESA_KEN',
+      description: `Invoice ${invoice.period || invoiceId}`,
+    });
+
+    // Update payment with gateway response
+    await docClient.send(new UpdateCommand({
+      TableName: PAYMENTS_TABLE,
+      Key: { instanceId: invoice.instanceId, id: payment.id },
+      UpdateExpression: 'SET gatewayResponse = :gr, gatewayStatus = :gs',
+      ExpressionAttributeValues: {
+        ':gr': JSON.stringify(result.body),
+        ':gs': String(result.statusCode),
+      },
+    }));
+
+    return htmlResponse(200, 'M-Pesa Payment Prompt Sent',
+      `A payment prompt for <strong>KES ${(invoice.totalAmount || 0).toLocaleString()}</strong> has been sent to <strong>${maskPhone(tenant.phone)}</strong>.<br><br>Please check your phone and enter your M-Pesa PIN to complete the payment.<br><br>You will receive an email receipt once payment is confirmed.`);
+  } catch (err) {
+    console.error('M-Pesa initiation failed:', err);
+    return htmlResponse(500, 'Payment Error', 'Failed to send M-Pesa payment prompt. Please try again or contact your property manager.');
+  }
+}
+
+function maskPhone(phone) {
+  if (!phone || phone.length < 6) return phone;
+  return phone.slice(0, 4) + '****' + phone.slice(-3);
+}
+
+function htmlResponse(statusCode, title, message) {
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title} - TenantBilling</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f0ff; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .card { background: white; border-radius: 20px; padding: 40px; max-width: 480px; width: 100%; box-shadow: 0 4px 24px rgba(108, 63, 197, 0.1); text-align: center; }
+    .logo { height: 40px; margin-bottom: 24px; }
+    h1 { color: #1a0a3e; font-size: 22px; margin-bottom: 16px; }
+    p { color: #4a5568; font-size: 15px; line-height: 1.6; }
+    .badge { display: inline-block; margin-top: 20px; padding: 8px 20px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+    .badge-success { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
+    .badge-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .footer { margin-top: 32px; padding-top: 20px; border-top: 1px solid #e5e7eb; font-size: 12px; color: #9ca3af; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="https://tenantbilling-assets-382334305159.s3.eu-north-1.amazonaws.com/images/logo.png" alt="TenantBilling" class="logo">
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <span class="badge ${statusCode === 200 ? 'badge-success' : 'badge-error'}">${statusCode === 200 ? 'Processing' : 'Error'}</span>
+    <div class="footer">Powered by TenantBilling &middot; tenantbilling.africa</div>
+  </div>
+</body>
+</html>`;
+
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'text/html' },
+    body: html,
+  };
 }

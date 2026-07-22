@@ -17,18 +17,25 @@ const FROM_EMAIL = (process.env.SES_FROM_EMAIL && !process.env.SES_FROM_EMAIL.in
  * @param {string} params.pdfFilename - Filename for the attachment
  * @returns {Promise<Object>} SES send result
  */
-async function sendEmailWithPdf({ to, subject, textBody, htmlBody, pdfBuffer, pdfFilename }) {
+async function sendEmailWithPdf({ to, cc, subject, textBody, htmlBody, pdfBuffer, pdfFilename }) {
   if (!to) throw new Error('Recipient email is required');
 
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const pdfBase64 = pdfBuffer.toString('base64');
 
-  const rawMessage = [
+  const headers = [
     `From: TenantBilling <${FROM_EMAIL}>`,
     `To: ${to}`,
+  ];
+  if (cc) headers.push(`Cc: ${cc}`);
+  headers.push(
     `Subject: ${subject}`,
     `MIME-Version: 1.0`,
     `Content-Type: multipart/mixed; boundary="${boundary}"`,
+  );
+
+  const rawMessage = [
+    ...headers,
     ``,
     `--${boundary}`,
     `Content-Type: multipart/alternative; boundary="${boundary}_alt"`,
@@ -58,10 +65,13 @@ async function sendEmailWithPdf({ to, subject, textBody, htmlBody, pdfBuffer, pd
     `--${boundary}--`,
   ].join('\r\n');
 
+  const destinations = [to];
+  if (cc && cc !== to) destinations.push(cc);
+
   const command = new SendRawEmailCommand({
     RawMessage: { Data: Buffer.from(rawMessage) },
     Source: FROM_EMAIL,
-    Destinations: [to],
+    Destinations: destinations,
   });
 
   return ses.send(command);
@@ -149,7 +159,7 @@ async function sendApplicationApprovalEmail({ to, cc, applicantName, companyName
 /**
  * Send an invoice PDF email to a tenant.
  */
-async function sendInvoiceEmail({ to, tenantName, period, totalAmount, currency, instanceName, pdfBuffer }) {
+async function sendInvoiceEmail({ to, cc, tenantName, period, totalAmount, currency, instanceName, pdfBuffer }) {
   const subject = `Your Invoice for ${formatPeriod(period)} - ${currency} ${totalAmount.toLocaleString()}`;
   const pdfFilename = `Invoice_${period}_${tenantName.replace(/\s+/g, '_')}.pdf`;
 
@@ -195,13 +205,13 @@ async function sendInvoiceEmail({ to, tenantName, period, totalAmount, currency,
 </body>
 </html>`;
 
-  return sendEmailWithPdf({ to, subject, textBody, htmlBody, pdfBuffer, pdfFilename });
+  return sendEmailWithPdf({ to, cc, subject, textBody, htmlBody, pdfBuffer, pdfFilename });
 }
 
 /**
  * Send a payment receipt PDF email to a tenant.
  */
-async function sendReceiptEmail({ to, tenantName, period, amount, currency, transactionId, instanceName, pdfBuffer }) {
+async function sendReceiptEmail({ to, cc, tenantName, period, amount, currency, transactionId, instanceName, pdfBuffer }) {
   const subject = `Payment Receipt - ${currency} ${amount.toLocaleString()} for ${formatPeriod(period)}`;
   const pdfFilename = `Receipt_${period}_${tenantName.replace(/\s+/g, '_')}.pdf`;
 
@@ -252,7 +262,7 @@ async function sendReceiptEmail({ to, tenantName, period, amount, currency, tran
 </body>
 </html>`;
 
-  return sendEmailWithPdf({ to, subject, textBody, htmlBody, pdfBuffer, pdfFilename });
+  return sendEmailWithPdf({ to, cc, subject, textBody, htmlBody, pdfBuffer, pdfFilename });
 }
 
 function formatPeriod(period) {
