@@ -1,4 +1,4 @@
-const { QueryCommand, ScanCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { QueryCommand, ScanCommand, PutCommand, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const {
@@ -13,6 +13,7 @@ const BUILDINGS_TABLE = process.env.BUILDINGS_TABLE;
 const STAFF_TABLE = process.env.STAFF_TABLE;
 const METER_READINGS_TABLE = process.env.METER_READINGS_TABLE;
 const APPLICATIONS_TABLE = process.env.APPLICATIONS_TABLE;
+const SETTINGS_TABLE = process.env.SETTINGS_TABLE;
 
 /**
  * Scheduled billing handler.
@@ -50,6 +51,20 @@ exports.generateAndSendInvoices = async (event) => {
     const instanceName = instance.businessName || instance.name || 'Property Manager';
 
     try {
+      // Read per-instance water rate from billing settings
+      let waterRate = defaultWaterRate;
+      if (SETTINGS_TABLE) {
+        try {
+          const settingsResult = await docClient.send(new GetCommand({
+            TableName: SETTINGS_TABLE,
+            Key: { id: `billing_${instanceId}` },
+          }));
+          if (settingsResult.Item?.waterRate !== undefined) {
+            waterRate = settingsResult.Item.waterRate;
+          }
+        } catch (_) { /* use default */ }
+      }
+
       // Get active tenants
       const tenantsResult = await docClient.send(new QueryCommand({
         TableName: TENANTS_TABLE,
@@ -106,7 +121,7 @@ exports.generateAndSendInvoices = async (event) => {
           const items = readings.Items || [];
           if (items.length >= 2) {
             waterUsage = items[0].reading - items[1].reading;
-            waterCharge = waterUsage * defaultWaterRate;
+            waterCharge = waterUsage * waterRate;
           }
         }
 

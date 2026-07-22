@@ -3,6 +3,7 @@ const { sendInvoiceEmail, sendReceiptEmail } = require('./email');
 
 const API_TOKEN = process.env.CHATWORKS_API_TOKEN;
 const CHATWORKS_BASE = 'https://www.chatworks.chat/api';
+const API_URL = process.env.API_URL || '';
 
 /**
  * Send a WhatsApp message via ChatWorks messaging API.
@@ -64,6 +65,48 @@ function sendWhatsAppDocument({ phone, pdfBuffer, filename, caption }) {
   });
 
   const url = new URL(`${CHATWORKS_BASE}/messages/send-media`);
+
+  const options = {
+    hostname: url.hostname,
+    path: url.pathname,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_TOKEN}`,
+      'Content-Length': Buffer.byteLength(payload),
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve({ statusCode: res.statusCode, body: JSON.parse(data) });
+        } catch {
+          resolve({ statusCode: res.statusCode, body: data });
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+/**
+ * Send an SMS message via ChatWorks messaging API.
+ */
+function sendSmsMessage({ phone, message }) {
+  const payload = JSON.stringify({
+    phone,
+    message,
+    channel: 'sms',
+    service: 'tenantbilling',
+  });
+
+  const url = new URL(`${CHATWORKS_BASE}/messages/send`);
 
   const options = {
     hostname: url.hostname,
@@ -186,13 +229,28 @@ async function sendInvoiceNotification(params) {
     }
   }
 
+  // Send SMS with payment link
+  if (phone && invoiceId && API_URL) {
+    try {
+      const payLink = `${API_URL}/tenant-portal/pay-mpesa?invoiceId=${invoiceId}`;
+      const smsMsg = `Your bill for ${period} is KES ${(totalAmount || 0).toLocaleString()}. Pay via M-Pesa: ${payLink} - TenantBilling`;
+      const smsResult = await sendSmsMessage({ phone, message: smsMsg });
+      results.sms = { sent: smsResult.statusCode >= 200 && smsResult.statusCode < 300 };
+      if (results.sms.sent) results.sent = true;
+    } catch (err) {
+      console.error('SMS invoice send failed:', err);
+      results.sms = { sent: false, reason: err.message };
+    }
+  }
+
   return results;
 }
 
 /**
  * Fallback: send invoice as text message via WhatsApp.
  */
-async function sendWhatsAppTextInvoice({ tenantName, phone, period, rent, serviceCharge, waterCharge, totalAmount, currency }) {
+async function sendWhatsAppTextInvoice({ tenantName, phone, period, rent, serviceCharge, waterCharge, totalAmount, currency, invoiceId }) {
+  const payLink = (invoiceId && API_URL) ? `${API_URL}/tenant-portal/pay-mpesa?invoiceId=${invoiceId}` : null;
   const message = [
     `Hello ${tenantName},`,
     ``,
@@ -204,8 +262,7 @@ async function sendWhatsAppTextInvoice({ tenantName, phone, period, rent, servic
     `  ─────────────────`,
     `  Total Due: ${currency} ${(totalAmount || 0).toLocaleString()}`,
     ``,
-    `A detailed PDF invoice has been sent to your email.`,
-    `Please make payment at your earliest convenience.`,
+    payLink ? `Pay now via M-Pesa: ${payLink}` : null,
     ``,
     `- TenantBilling`,
   ].filter(Boolean).join('\n');
@@ -221,10 +278,11 @@ async function sendWhatsAppTextInvoice({ tenantName, phone, period, rent, servic
 /**
  * Send a payment reminder to a tenant with an overdue invoice (WhatsApp only).
  */
-async function sendPaymentReminder({ tenantName, phone, period, totalAmount, currency, daysOverdue }) {
+async function sendPaymentReminder({ tenantName, phone, period, totalAmount, currency, daysOverdue, invoiceId }) {
   if (!phone) return { sent: false, reason: 'No phone number' };
 
   const urgency = daysOverdue > 14 ? 'URGENT: ' : '';
+  const payLink = (invoiceId && API_URL) ? `${API_URL}/tenant-portal/pay-mpesa?invoiceId=${invoiceId}` : null;
 
   const message = [
     `${urgency}Payment Reminder`,
@@ -233,19 +291,38 @@ async function sendPaymentReminder({ tenantName, phone, period, totalAmount, cur
     ``,
     `Your invoice for ${period} (${currency} ${totalAmount.toLocaleString()}) remains unpaid${daysOverdue > 0 ? ` and is ${daysOverdue} days overdue` : ''}.`,
     ``,
+    payLink ? `Pay now via M-Pesa: ${payLink}` : null,
+    ``,
     `Please arrange payment as soon as possible to avoid service disruption.`,
     ``,
     `If you have already paid, please disregard this message.`,
     ``,
     `- TenantBilling`,
-  ].join('\n');
+  ].filter(Boolean).join('\n');
+
+  const results = { whatsapp: null, sms: null, sent: false };
 
   try {
-    const result = await sendWhatsAppMessage({ phone, message });
-    return { sent: result.statusCode >= 200 && result.statusCode < 300, result };
+    const waResult = await sendWhatsAppMessage({ phone, message });
+    results.whatsapp = { sent: waResult.statusCode >= 200 && waResult.statusCode < 300 };
+    if (results.whatsapp.sent) results.sent = true;
   } catch (err) {
-    return { sent: false, reason: err.message };
+    results.whatsapp = { sent: false, reason: err.message };
   }
+
+  // Also send SMS with payment link
+  if (payLink) {
+    try {
+      const smsMsg = `${urgency}Reminder: KES ${totalAmount.toLocaleString()} due for ${period}. Pay now: ${payLink} - TenantBilling`;
+      const smsResult = await sendSmsMessage({ phone, message: smsMsg });
+      results.sms = { sent: smsResult.statusCode >= 200 && smsResult.statusCode < 300 };
+      if (results.sms.sent) results.sent = true;
+    } catch (err) {
+      results.sms = { sent: false, reason: err.message };
+    }
+  }
+
+  return results;
 }
 
 /**
@@ -354,6 +431,19 @@ async function sendPaymentReceipt(params) {
     } catch (err) {
       console.error('Email receipt send failed:', err);
       results.email = { sent: false, reason: err.message };
+    }
+  }
+
+  // Send SMS confirmation
+  if (phone) {
+    try {
+      const smsMsg = `Payment of ${currency} ${(amount || 0).toLocaleString()} received for ${period}. Receipt #${transactionId ? transactionId.slice(0, 8) : 'N/A'}. Thank you! - TenantBilling`;
+      const smsResult = await sendSmsMessage({ phone, message: smsMsg });
+      results.sms = { sent: smsResult.statusCode >= 200 && smsResult.statusCode < 300 };
+      if (results.sms.sent) results.sent = true;
+    } catch (err) {
+      console.error('SMS receipt send failed:', err);
+      results.sms = { sent: false, reason: err.message };
     }
   }
 

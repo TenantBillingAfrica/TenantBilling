@@ -13,8 +13,15 @@ exports.handler = async (event) => {
   setEvent(event);
   const method = event.requestContext.http.method;
   const claims = getClaims(event);
-  const denied = requireRole(claims, 'instance_admin');
-  if (denied) return denied;
+
+  // Allow meter_reader read-only access to tenant list
+  if (method === 'GET') {
+    const denied = requireRole(claims, 'instance_admin', 'meter_reader');
+    if (denied) return denied;
+  } else {
+    const denied = requireRole(claims, 'instance_admin');
+    if (denied) return denied;
+  }
 
   const { instanceId } = claims;
 

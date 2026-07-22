@@ -68,23 +68,6 @@ async function create(instanceId, instanceName, event) {
     return badRequest(`Invalid role. Allowed: ${ALLOWED_ROLES.join(', ')}`);
   }
 
-  const tempPassword = generateTempPassword();
-
-  // Create Cognito user for the staff member
-  await cognito.send(new AdminCreateUserCommand({
-    UserPoolId: process.env.USER_POOL_ID,
-    Username: email,
-    TemporaryPassword: tempPassword,
-    UserAttributes: [
-      { Name: 'email', Value: email },
-      { Name: 'email_verified', Value: 'true' },
-      { Name: 'custom:role', Value: staffRole },
-      { Name: 'custom:instanceId', Value: instanceId },
-      { Name: 'custom:instanceName', Value: instanceName || '' },
-    ],
-    DesiredDeliveryMediums: ['EMAIL'],
-  }));
-
   const item = {
     instanceId,
     id: uuid(),
@@ -97,6 +80,29 @@ async function create(instanceId, instanceName, event) {
   };
 
   await docClient.send(new PutCommand({ TableName: TABLE, Item: item }));
+
+  // Create Cognito user for the staff member (skip if no USER_POOL_ID)
+  if (process.env.USER_POOL_ID) {
+    try {
+      const tempPassword = generateTempPassword();
+      await cognito.send(new AdminCreateUserCommand({
+        UserPoolId: process.env.USER_POOL_ID,
+        Username: email,
+        TemporaryPassword: tempPassword,
+        UserAttributes: [
+          { Name: 'email', Value: email },
+          { Name: 'email_verified', Value: 'true' },
+          { Name: 'custom:role', Value: staffRole },
+          { Name: 'custom:instanceId', Value: instanceId },
+          { Name: 'custom:instanceName', Value: instanceName || '' },
+        ],
+        DesiredDeliveryMediums: ['EMAIL'],
+      }));
+    } catch (cognitoErr) {
+      console.error('Failed to create Cognito user for staff:', cognitoErr.message);
+    }
+  }
+
   return created(item);
 }
 

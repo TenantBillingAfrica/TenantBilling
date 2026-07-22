@@ -68,11 +68,11 @@ async function initiate(instanceId, event) {
   const body = parseBody(event);
   if (!body) return badRequest('Invalid JSON in request body');
 
-  const allowedFields = ['invoiceId', 'phone', 'amount', 'currency'];
+  const allowedFields = ['invoiceId', 'phone', 'amount', 'currency', 'description', 'correspondent'];
   const invalid = validateFields(body, allowedFields);
   if (invalid.length > 0) return badRequest(`Unknown fields: ${invalid.join(', ')}`);
 
-  const { invoiceId, phone, amount, currency } = body;
+  const { invoiceId, phone, amount, currency, description, correspondent } = body;
 
   if (!invoiceId || !phone || !amount) {
     return badRequest('invoiceId, phone, and amount are required');
@@ -96,7 +96,8 @@ async function initiate(instanceId, event) {
     transactionId,
     phone,
     amount,
-    currency: currency || 'UGX',
+    currency: currency || 'KES',
+    description: description || '',
     status: 'pending',
     createdAt: new Date().toISOString(),
   };
@@ -108,8 +109,9 @@ async function initiate(instanceId, event) {
     transactionId,
     phone,
     amount,
-    currency: currency || 'UGX',
-    description: `Invoice ${invoiceId}`,
+    currency: currency || 'KES',
+    correspondent: correspondent || 'MPESA_KEN',
+    description: description || `Invoice ${invoiceId}`,
   });
 
   // Update payment with gateway response
@@ -170,18 +172,31 @@ async function handleCallback(event) {
     },
   }));
 
-  // If completed, mark invoice as paid and send receipt
+  // If completed, update invoice with cumulative payment tracking
   if (newStatus === 'completed') {
+    // Fetch invoice to get totalAmount and current paidAmount
+    const invoiceResult = await docClient.send(new GetCommand({
+      TableName: INVOICES_TABLE,
+      Key: { instanceId: payment.instanceId, id: payment.invoiceId },
+    }));
+    const invoice = invoiceResult.Item;
+    const currentPaid = (invoice?.paidAmount || 0) + payment.amount;
+    const totalAmount = invoice?.totalAmount || 0;
+    const newInvoiceStatus = currentPaid >= totalAmount ? 'paid' : 'partially_paid';
+
+    const updateExpr = newInvoiceStatus === 'paid'
+      ? 'SET #s = :s, paidAt = :at, paymentId = :pid, paidAmount = :pa'
+      : 'SET #s = :s, paidAmount = :pa';
+    const exprValues = newInvoiceStatus === 'paid'
+      ? { ':s': 'paid', ':at': new Date().toISOString(), ':pid': payment.id, ':pa': currentPaid }
+      : { ':s': 'partially_paid', ':pa': currentPaid };
+
     await docClient.send(new UpdateCommand({
       TableName: INVOICES_TABLE,
       Key: { instanceId: payment.instanceId, id: payment.invoiceId },
-      UpdateExpression: 'SET #s = :s, paidAt = :at, paymentId = :pid',
+      UpdateExpression: updateExpr,
       ExpressionAttributeNames: { '#s': 'status' },
-      ExpressionAttributeValues: {
-        ':s': 'paid',
-        ':at': new Date().toISOString(),
-        ':pid': payment.id,
-      },
+      ExpressionAttributeValues: exprValues,
     }));
 
     // Send payment receipt notification via WhatsApp (PDF) and Email (PDF)
@@ -190,59 +205,52 @@ async function handleCallback(event) {
       const TENANTS_TABLE = process.env.TENANTS_TABLE;
       const BUILDINGS_TABLE = process.env.BUILDINGS_TABLE;
 
-      if (TENANTS_TABLE) {
-        const invoiceResult = await docClient.send(new GetCommand({
-          TableName: INVOICES_TABLE,
-          Key: { instanceId: payment.instanceId, id: payment.invoiceId },
-        }));
-        const invoice = invoiceResult.Item;
-
-        if (invoice) {
-          // Get tenant details for email and building context
-          let tenant = null;
-          if (invoice.tenantId) {
-            const tenantResult = await docClient.send(new QueryCommand({
-              TableName: TENANTS_TABLE,
-              KeyConditionExpression: 'instanceId = :iid AND id = :tid',
-              ExpressionAttributeValues: {
-                ':iid': payment.instanceId,
-                ':tid': invoice.tenantId,
-              },
-            }));
-            tenant = (tenantResult.Items || [])[0];
-          }
-
-          // Get building name
-          let buildingName = '';
-          if (tenant?.buildingId && BUILDINGS_TABLE) {
-            const buildingResult = await docClient.send(new QueryCommand({
-              TableName: BUILDINGS_TABLE,
-              KeyConditionExpression: 'instanceId = :iid AND id = :bid',
-              ExpressionAttributeValues: {
-                ':iid': payment.instanceId,
-                ':bid': tenant.buildingId,
-              },
-            }));
-            const building = (buildingResult.Items || [])[0];
-            buildingName = building?.name || '';
-          }
-
-          await sendPaymentReceipt({
-            tenantName: tenant?.name || invoice.tenantName || 'Tenant',
-            phone: payment.phone || tenant?.phone,
-            email: tenant?.email,
-            cc: invoice.ccEmail || null,
-            amount: payment.amount,
-            currency: payment.currency || 'KES',
-            period: invoice.period,
-            transactionId: payment.transactionId,
-            paidAt: new Date().toISOString(),
-            instanceName: 'Property Manager',
-            unitNumber: tenant?.unitNumber,
-            buildingName,
-            invoiceId: payment.invoiceId,
-          });
+      if (TENANTS_TABLE && invoice) {
+        // Get tenant details for email and building context
+        let tenant = null;
+        if (invoice.tenantId) {
+          const tenantResult = await docClient.send(new QueryCommand({
+            TableName: TENANTS_TABLE,
+            KeyConditionExpression: 'instanceId = :iid AND id = :tid',
+            ExpressionAttributeValues: {
+              ':iid': payment.instanceId,
+              ':tid': invoice.tenantId,
+            },
+          }));
+          tenant = (tenantResult.Items || [])[0];
         }
+
+        // Get building name
+        let buildingName = '';
+        if (tenant?.buildingId && BUILDINGS_TABLE) {
+          const buildingResult = await docClient.send(new QueryCommand({
+            TableName: BUILDINGS_TABLE,
+            KeyConditionExpression: 'instanceId = :iid AND id = :bid',
+            ExpressionAttributeValues: {
+              ':iid': payment.instanceId,
+              ':bid': tenant.buildingId,
+            },
+          }));
+          const building = (buildingResult.Items || [])[0];
+          buildingName = building?.name || '';
+        }
+
+        await sendPaymentReceipt({
+          tenantName: tenant?.name || invoice.tenantName || 'Tenant',
+          phone: payment.phone || tenant?.phone,
+          email: tenant?.email,
+          cc: invoice.ccEmail || null,
+          amount: payment.amount,
+          remainingAmount: totalAmount - currentPaid,
+          currency: payment.currency || 'KES',
+          period: invoice.period,
+          transactionId: payment.transactionId,
+          paidAt: new Date().toISOString(),
+          instanceName: 'Property Manager',
+          unitNumber: tenant?.unitNumber,
+          buildingName,
+          invoiceId: payment.invoiceId,
+        });
       }
     } catch (receiptErr) {
       console.error('Failed to send payment receipt:', receiptErr);

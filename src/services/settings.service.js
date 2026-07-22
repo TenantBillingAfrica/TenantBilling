@@ -14,3 +14,13 @@ export async function saveSettings(data) {
   const res = await api.put('/admin/settings', data);
   return res.data;
 }
+
+export async function getBillingSettings() {
+  const res = await api.get('/admin/settings/billing');
+  return res.data;
+}
+
+export async function saveBillingSettings(data) {
+  const res = await api.put('/admin/settings/billing', data);
+  return res.data;
+}

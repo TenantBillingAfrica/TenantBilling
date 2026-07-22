@@ -1,4 +1,4 @@
-const { PutCommand, QueryCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { PutCommand, QueryCommand, UpdateCommand, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const { randomUUID: uuid } = require('crypto');
 const { docClient } = require('../lib/dynamo');
 const { getClaims, requireRole } = require('../lib/auth');
@@ -8,6 +8,7 @@ const { parseBody, validateFields, isNonNegativeNumber } = require('../lib/reque
 const TABLE = process.env.INVOICES_TABLE;
 const TENANTS_TABLE = process.env.TENANTS_TABLE;
 const METER_READINGS_TABLE = process.env.METER_READINGS_TABLE;
+const SETTINGS_TABLE = process.env.SETTINGS_TABLE;
 
 exports.handler = async (event) => {
   setEvent(event);
@@ -95,6 +96,18 @@ async function generateBatch(instanceId, event) {
     return badRequest('Water rate must be a non-negative number');
   }
 
+  // If no waterRate provided, read from billing settings
+  let effectiveWaterRate = waterRate;
+  if (effectiveWaterRate === undefined && SETTINGS_TABLE) {
+    try {
+      const settingsResult = await docClient.send(new GetCommand({
+        TableName: SETTINGS_TABLE,
+        Key: { id: `billing_${instanceId}` },
+      }));
+      effectiveWaterRate = settingsResult.Item?.waterRate;
+    } catch (_) { /* use default */ }
+  }
+
   // Get all tenants for this instance
   const tenantsResult = await docClient.send(new QueryCommand({
     TableName: TENANTS_TABLE,
@@ -124,7 +137,7 @@ async function generateBatch(instanceId, event) {
       const items = readings.Items || [];
       if (items.length >= 2) {
         waterUsage = items[0].reading - items[1].reading;
-        waterCharge = waterUsage * (waterRate || 50);
+        waterCharge = waterUsage * (effectiveWaterRate || 50);
       }
     }
 
@@ -142,6 +155,7 @@ async function generateBatch(instanceId, event) {
       waterUsage,
       waterCharge,
       totalAmount,
+      paidAmount: 0,
       status: 'unpaid',
       createdAt: new Date().toISOString(),
     };

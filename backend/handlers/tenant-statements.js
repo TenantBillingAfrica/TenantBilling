@@ -479,6 +479,13 @@ async function payMpesa(event) {
     return htmlResponse(200, 'Already Paid', `This invoice for KES ${(invoice.totalAmount || 0).toLocaleString()} has already been paid. Thank you!`);
   }
 
+  // Support partial payment: use amount query param or remaining balance
+  const remainingAmount = (invoice.totalAmount || 0) - (invoice.paidAmount || 0);
+  const requestedAmount = event.queryStringParameters?.amount ? Number(event.queryStringParameters.amount) : null;
+  const payAmount = requestedAmount && requestedAmount > 0 && requestedAmount <= remainingAmount
+    ? requestedAmount
+    : remainingAmount;
+
   // Get tenant for phone number
   const tenantResult = await docClient.send(new QueryCommand({
     TableName: TENANTS_TABLE,
@@ -505,7 +512,7 @@ async function payMpesa(event) {
   const pendingPayment = (existingPayments.Items || []).find(p => p.status === 'pending');
   if (pendingPayment) {
     return htmlResponse(200, 'Payment Prompt Sent',
-      `An M-Pesa payment prompt for KES ${(invoice.totalAmount || 0).toLocaleString()} has already been sent to ${maskPhone(tenant.phone)}. Please check your phone and enter your M-Pesa PIN to complete payment.`);
+      `An M-Pesa payment prompt for KES ${(pendingPayment.amount || 0).toLocaleString()} has already been sent to ${maskPhone(tenant.phone)}. Please check your phone and enter your M-Pesa PIN to complete payment.`);
   }
 
   // Create payment record
@@ -516,7 +523,7 @@ async function payMpesa(event) {
     invoiceId,
     transactionId,
     phone: tenant.phone,
-    amount: invoice.totalAmount,
+    amount: payAmount,
     currency: 'KES',
     status: 'pending',
     createdAt: new Date().toISOString(),
@@ -529,7 +536,7 @@ async function payMpesa(event) {
     const result = await initiateCollection({
       transactionId,
       phone: tenant.phone,
-      amount: invoice.totalAmount,
+      amount: payAmount,
       currency: 'KES',
       correspondent: 'MPESA_KEN',
       description: `Invoice ${invoice.period || invoiceId}`,
@@ -546,8 +553,11 @@ async function payMpesa(event) {
       },
     }));
 
+    const partialNote = payAmount < (invoice.totalAmount || 0)
+      ? `<br><br>Remaining balance: <strong>KES ${(remainingAmount - payAmount).toLocaleString()}</strong>`
+      : '';
     return htmlResponse(200, 'M-Pesa Payment Prompt Sent',
-      `A payment prompt for <strong>KES ${(invoice.totalAmount || 0).toLocaleString()}</strong> has been sent to <strong>${maskPhone(tenant.phone)}</strong>.<br><br>Please check your phone and enter your M-Pesa PIN to complete the payment.<br><br>You will receive an email receipt once payment is confirmed.`);
+      `A payment prompt for <strong>KES ${payAmount.toLocaleString()}</strong> has been sent to <strong>${maskPhone(tenant.phone)}</strong>.<br><br>Please check your phone and enter your M-Pesa PIN to complete the payment.${partialNote}<br><br>You will receive an email receipt once payment is confirmed.`);
   } catch (err) {
     console.error('M-Pesa initiation failed:', err);
     return htmlResponse(500, 'Payment Error', 'Failed to send M-Pesa payment prompt. Please try again or contact your property manager.');

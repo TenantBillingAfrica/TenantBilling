@@ -211,6 +211,7 @@ async function sendReminders(instanceId, event) {
       totalAmount: invoice.totalAmount || 0,
       currency: 'KES',
       daysOverdue,
+      invoiceId: invoice.id,
     });
 
     if (result.sent) {

@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SystemAdminDashboard from '../dashboards/SystemAdminDashboard';
 import InstanceAdminDashboard from '../dashboards/InstanceAdminDashboard';
+import MeterReaderDashboard from '../dashboards/MeterReaderDashboard';
 import TenantStatementDashboard from '../dashboards/TenantStatementDashboard';
 
 const DashboardPage = () => {
@@ -16,8 +17,9 @@ const DashboardPage = () => {
     case 'system_admin':
       return <SystemAdminDashboard />;
     case 'instance_admin':
-    case 'meter_reader':
       return <InstanceAdminDashboard />;
+    case 'meter_reader':
+      return <MeterReaderDashboard />;
     case 'tenant':
       return <TenantStatementDashboard />;
     default:

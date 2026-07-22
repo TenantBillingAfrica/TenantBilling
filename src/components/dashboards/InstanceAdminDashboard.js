@@ -13,6 +13,7 @@ import { listInvoices, generateInvoices } from '../../services/invoices.service'
 import { listPayments, initiatePayment } from '../../services/payments.service';
 import { listMeterReadings, createMeterReading } from '../../services/meter-readings.service';
 import { sendInvoiceNotifications, sendPaymentReminders, sendMeterReadingReminders } from '../../services/notifications.service';
+import { getBillingSettings, saveBillingSettings } from '../../services/settings.service';
 
 const TABS = [
   { key: 'buildings', label: 'instance_buildings', icon: Building2, gradient: 'from-emerald-400 to-teal-500' },
@@ -49,6 +50,16 @@ const InstanceAdminDashboard = () => {
   // Expanded tenant row for details
   const [expandedTenant, setExpandedTenant] = useState(null);
 
+  // Billing settings
+  const [waterRate, setWaterRate] = useState(50);
+
+  // Payment modal state
+  const [paymentModal, setPaymentModal] = useState(null); // invoice object or null
+  const [paymentPhone, setPaymentPhone] = useState('');
+  const [paymentMode, setPaymentMode] = useState('full'); // 'full', 'items', 'custom'
+  const [paymentItems, setPaymentItems] = useState({ rent: true, serviceCharge: true, waterCharge: true });
+  const [paymentCustomAmount, setPaymentCustomAmount] = useState('');
+
   const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -66,6 +77,11 @@ const InstanceAdminDashboard = () => {
       setInvoices(iRes.data);
       setPayments(pRes.data);
       setMeterReadings(mRes.data);
+      // Load billing settings (non-blocking)
+      try {
+        const billing = await getBillingSettings();
+        if (billing.waterRate !== undefined) setWaterRate(billing.waterRate);
+      } catch (_) { /* use default */ }
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -192,11 +208,23 @@ const InstanceAdminDashboard = () => {
     const now = new Date();
     setActionLoading(true);
     try {
-      await generateInvoices({ month: now.getMonth() + 1, year: now.getFullYear(), waterRate: 50 });
+      await generateInvoices({ month: now.getMonth() + 1, year: now.getFullYear(), waterRate });
       const res = await listInvoices();
       setInvoices(res.data);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to generate invoices');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSaveWaterRate = async () => {
+    setActionLoading(true);
+    try {
+      await saveBillingSettings({ waterRate });
+      alert('Water rate saved');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to save water rate');
     } finally {
       setActionLoading(false);
     }
@@ -215,16 +243,54 @@ const InstanceAdminDashboard = () => {
     }
   };
 
-  const handleCollectPayment = async (invoice) => {
-    const phone = prompt('Enter tenant phone number for mobile money collection:');
-    if (!phone) return;
+  const openPaymentModal = (invoice) => {
+    const tenant = tenants.find(t => t.id === invoice.tenantId);
+    setPaymentModal(invoice);
+    setPaymentPhone(tenant?.phone || '');
+    setPaymentMode('full');
+    setPaymentItems({ rent: true, serviceCharge: true, waterCharge: true });
+    setPaymentCustomAmount('');
+  };
+
+  const getPaymentAmount = () => {
+    if (!paymentModal) return 0;
+    const remaining = (paymentModal.totalAmount || 0) - (paymentModal.paidAmount || 0);
+    if (paymentMode === 'full') return remaining;
+    if (paymentMode === 'custom') return Number(paymentCustomAmount) || 0;
+    // items mode
+    let total = 0;
+    if (paymentItems.rent) total += paymentModal.rent || 0;
+    if (paymentItems.serviceCharge) total += paymentModal.serviceCharge || 0;
+    if (paymentItems.waterCharge) total += paymentModal.waterCharge || 0;
+    return Math.min(total, remaining);
+  };
+
+  const handleCollectPayment = async () => {
+    if (!paymentModal || !paymentPhone) return;
+    const amount = getPaymentAmount();
+    if (amount <= 0) { alert('Amount must be greater than 0'); return; }
+    const remaining = (paymentModal.totalAmount || 0) - (paymentModal.paidAmount || 0);
+    if (amount > remaining) { alert(`Amount exceeds remaining balance of KES ${remaining.toLocaleString()}`); return; }
+
+    const descParts = [];
+    if (paymentMode === 'items') {
+      if (paymentItems.rent) descParts.push('Rent');
+      if (paymentItems.serviceCharge) descParts.push('Service');
+      if (paymentItems.waterCharge) descParts.push('Water');
+    }
+    const description = paymentMode === 'items' ? descParts.join(' + ') : paymentMode === 'custom' ? 'Partial payment' : 'Full payment';
+
+    setActionLoading(true);
     try {
-      await initiatePayment({ invoiceId: invoice.id, phone, amount: invoice.totalAmount, currency: 'KES' });
+      await initiatePayment({ invoiceId: paymentModal.id, phone: paymentPhone, amount, currency: 'KES', description });
+      setPaymentModal(null);
       alert('Payment collection initiated. The tenant will receive a prompt on their phone.');
       const res = await listPayments();
       setPayments(res.data);
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to initiate payment');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -271,6 +337,7 @@ const InstanceAdminDashboard = () => {
       case 'active': case 'paid': case 'completed': return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
       case 'suspended': case 'overdue': case 'failed': return 'bg-red-50 text-red-700 border border-red-200';
       case 'unpaid': case 'pending': return 'bg-amber-50 text-amber-700 border border-amber-200';
+      case 'partially_paid': return 'bg-blue-50 text-blue-700 border border-blue-200';
       case 'vacated': return 'bg-gray-100 text-gray-500 border border-gray-300';
       default: return 'bg-warm-50 text-gray-500 border border-gray-200';
     }
@@ -280,7 +347,7 @@ const InstanceAdminDashboard = () => {
   const getTenantPaymentStatus = (tenantId) => {
     const tenantInvoices = invoices.filter(i => i.tenantId === tenantId);
     if (tenantInvoices.length === 0) return null;
-    const hasUnpaid = tenantInvoices.some(i => i.status === 'unpaid');
+    const hasUnpaid = tenantInvoices.some(i => i.status === 'unpaid' || i.status === 'partially_paid');
     return hasUnpaid ? 'overdue' : 'current';
   };
 
@@ -293,7 +360,8 @@ const InstanceAdminDashboard = () => {
   // Payment stats
   const collected = payments.filter(p => p.status === 'completed').reduce((s, p) => s + (p.amount || 0), 0);
   const totalBilled = invoices.reduce((s, i) => s + (i.totalAmount || 0), 0);
-  const outstanding = totalBilled - collected;
+  const totalPaidOnInvoices = invoices.reduce((s, i) => s + (i.paidAmount || 0), 0);
+  const outstanding = totalBilled - Math.max(collected, totalPaidOnInvoices);
   const collectionRate = totalBilled > 0 ? Math.round((collected / totalBilled) * 100) : 0;
 
   // Tenant field definitions for create/edit modals
@@ -433,6 +501,113 @@ const InstanceAdminDashboard = () => {
   return (
     <div className="flex h-full">
       {renderModal()}
+
+      {/* Payment Collection Modal */}
+      {paymentModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-navy-800">Collect Payment</h3>
+              <button onClick={() => setPaymentModal(null)} className="p-2 text-gray-400 hover:text-navy-800 bg-transparent border-none cursor-pointer rounded-lg">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-lavender-50 rounded-xl">
+              <p className="text-sm font-semibold text-navy-800">{paymentModal.tenantName}</p>
+              <p className="text-xs text-gray-500 mt-1">Period: {paymentModal.period} &middot; Total: KES {(paymentModal.totalAmount || 0).toLocaleString()}</p>
+              {(paymentModal.paidAmount || 0) > 0 && (
+                <p className="text-xs text-blue-600 mt-1">Already paid: KES {(paymentModal.paidAmount || 0).toLocaleString()} &middot; Remaining: KES {((paymentModal.totalAmount || 0) - (paymentModal.paidAmount || 0)).toLocaleString()}</p>
+              )}
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-navy-800 mb-1.5">Phone Number</label>
+              <input
+                type="tel"
+                value={paymentPhone}
+                onChange={(e) => setPaymentPhone(e.target.value)}
+                placeholder="+254..."
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 bg-gray-50 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+              />
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-navy-800 mb-2">Payment Type</label>
+              <div className="flex gap-2">
+                {[
+                  { key: 'full', label: 'Full Balance' },
+                  { key: 'items', label: 'Select Items' },
+                  { key: 'custom', label: 'Custom Amount' },
+                ].map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => setPaymentMode(opt.key)}
+                    className={`flex-1 py-2 text-xs font-semibold rounded-full border cursor-pointer transition-all ${
+                      paymentMode === opt.key
+                        ? 'bg-purple-100 text-purple-700 border-purple-300'
+                        : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {paymentMode === 'items' && (
+              <div className="mb-4 space-y-2">
+                {[
+                  { key: 'rent', label: 'Rent', amount: paymentModal.rent || 0 },
+                  { key: 'serviceCharge', label: 'Service Charge', amount: paymentModal.serviceCharge || 0 },
+                  { key: 'waterCharge', label: 'Water Charge', amount: paymentModal.waterCharge || 0 },
+                ].filter(item => item.amount > 0).map(item => (
+                  <label key={item.key} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-lavender-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={paymentItems[item.key]}
+                      onChange={(e) => setPaymentItems(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                      className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="flex-1 text-sm text-navy-800">{item.label}</span>
+                    <span className="text-sm font-semibold text-navy-800">KES {item.amount.toLocaleString()}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {paymentMode === 'custom' && (
+              <div className="mb-4">
+                <label className="block text-sm font-semibold text-navy-800 mb-1.5">Amount (KES)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max={(paymentModal.totalAmount || 0) - (paymentModal.paidAmount || 0)}
+                  value={paymentCustomAmount}
+                  onChange={(e) => setPaymentCustomAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm text-navy-800 bg-gray-50 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                />
+              </div>
+            )}
+
+            <div className="p-4 bg-emerald-50 rounded-xl mb-6 border border-emerald-200">
+              <p className="text-sm text-emerald-700">
+                Amount to collect: <span className="font-bold">KES {getPaymentAmount().toLocaleString()}</span>
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setPaymentModal(null)} className="flex-1 py-3 text-sm font-semibold text-gray-500 bg-gray-100 rounded-full border-none cursor-pointer hover:bg-gray-200 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleCollectPayment} disabled={actionLoading || getPaymentAmount() <= 0} className="flex-1 py-3 text-sm font-bold text-white bg-emerald-500 rounded-full border-none cursor-pointer hover:bg-emerald-600 disabled:opacity-50 transition-all">
+                {actionLoading ? 'Sending...' : 'Send M-Pesa Prompt'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sidebar */}
       <div className="w-60 bg-gradient-to-b from-navy-800 to-navy-900 text-white flex-shrink-0 flex flex-col">
@@ -776,7 +951,24 @@ const InstanceAdminDashboard = () => {
             {/* Billing tab */}
             {activeTab === 'billing' && (
               <>
-                <div className="flex items-center justify-end mb-6 gap-3 flex-wrap">
+                <div className="flex items-center mb-6 gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 mr-auto">
+                    <label className="text-sm font-semibold text-navy-800">Water Rate (KES/unit):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={waterRate}
+                      onChange={(e) => setWaterRate(Number(e.target.value))}
+                      className="w-24 px-3 py-2 rounded-xl border border-gray-200 text-sm text-navy-800 bg-gray-50 focus:outline-none focus:border-purple-400 focus:ring-2 focus:ring-purple-100"
+                    />
+                    <button
+                      onClick={handleSaveWaterRate}
+                      disabled={actionLoading}
+                      className="px-4 py-2 bg-purple-100 text-purple-700 text-sm font-semibold rounded-full border-none cursor-pointer hover:bg-purple-200 transition-all disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                  </div>
                   <button
                     onClick={handleGenerateInvoices}
                     disabled={actionLoading}
@@ -806,7 +998,7 @@ const InstanceAdminDashboard = () => {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-gray-100">
-                          {['Tenant', 'Unit', 'Period', 'Rent', 'Service', 'Water', 'Total', 'Status', 'Actions'].map(h => (
+                          {['Tenant', 'Unit', 'Period', 'Rent', 'Service', 'Water', 'Total', 'Paid', 'Status', 'Actions'].map(h => (
                             <th key={h} className="px-4 py-4 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/80">{h}</th>
                           ))}
                         </tr>
@@ -823,15 +1015,18 @@ const InstanceAdminDashboard = () => {
                               <td className="px-4 py-4 text-sm text-gray-500">KES {(inv.serviceCharge || 0).toLocaleString()}</td>
                               <td className="px-4 py-4 text-sm text-gray-500">{inv.waterUsage || 0}u / KES {(inv.waterCharge || 0).toLocaleString()}</td>
                               <td className="px-4 py-4 text-sm font-semibold text-navy-800">KES {(inv.totalAmount || 0).toLocaleString()}</td>
+                              <td className="px-4 py-4 text-sm text-gray-500">
+                                {(inv.paidAmount || 0) > 0 ? `KES ${(inv.paidAmount || 0).toLocaleString()}` : '--'}
+                              </td>
                               <td className="px-4 py-4">
-                                <span className={`px-3 py-1 text-xs font-semibold rounded-full capitalize ${getStatusStyle(inv.status)}`}>
-                                  {inv.status}
+                                <span className={`px-3 py-1 text-xs font-semibold rounded-full ${getStatusStyle(inv.status)}`}>
+                                  {inv.status === 'partially_paid' ? 'Partial' : inv.status}
                                 </span>
                               </td>
                               <td className="px-4 py-4">
-                                {inv.status === 'unpaid' && (
+                                {(inv.status === 'unpaid' || inv.status === 'partially_paid') && (
                                   <button
-                                    onClick={() => handleCollectPayment(inv)}
+                                    onClick={() => openPaymentModal(inv)}
                                     className="px-4 py-1.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors"
                                   >
                                     Collect

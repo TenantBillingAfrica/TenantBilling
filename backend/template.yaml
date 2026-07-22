@@ -29,6 +29,7 @@ Globals:
         TWILIO_AUTH_TOKEN: '{{resolve:ssm:/tenantbilling/twilio/authtoken}}'
         TWILIO_WHATSAPP_FROM: '{{resolve:ssm:/tenantbilling/twilio/whatsappfrom}}'
         TWILIO_MESSAGING_SERVICE_SID: '{{resolve:ssm:/tenantbilling/twilio/messagingservicesid}}'
+        API_URL: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
 
 Parameters:
   CognitoDomain:
@@ -772,6 +773,18 @@ Resources:
             ApiId: !Ref HttpApi
             Path: /admin/settings/reveal
             Method: POST
+        GetBillingSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/settings/billing
+            Method: GET
+        PutBillingSettings:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /admin/settings/billing
+            Method: PUT
 
   # Tenant Self-Service Portal (public OTP + JWT-authenticated routes)
   TenantPortalFunction:

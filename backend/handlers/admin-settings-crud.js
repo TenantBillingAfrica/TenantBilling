@@ -112,6 +112,13 @@ exports.handler = async (event) => {
       const body = JSON.parse(event.body || '{}');
       return await saveSettings(body, claims.email);
     }
+    if (method === 'GET' && path === '/admin/settings/billing') {
+      return await getBillingSettings(claims.instanceId);
+    }
+    if (method === 'PUT' && path === '/admin/settings/billing') {
+      const body = JSON.parse(event.body || '{}');
+      return await saveBillingSettings(claims.instanceId, body, claims.email);
+    }
     return badRequest('Unknown route');
   } catch (err) {
     console.error('AdminSettingsHandler error:', err);
@@ -191,4 +198,37 @@ async function saveSettings(body, updatedBy) {
 
   // Return masked response — never leak values on save
   return ok(maskSettings(item));
+}
+
+/* ── GET  /admin/settings/billing ── per-instance billing config ── */
+
+async function getBillingSettings(instanceId) {
+  const result = await docClient.send(new GetCommand({
+    TableName: process.env.SETTINGS_TABLE,
+    Key: { id: `billing_${instanceId}` },
+  }));
+  return ok(result.Item || { waterRate: 50 });
+}
+
+/* ── PUT  /admin/settings/billing ── save billing config ── */
+
+async function saveBillingSettings(instanceId, body, updatedBy) {
+  const { waterRate } = body;
+  if (waterRate !== undefined && (typeof waterRate !== 'number' || waterRate < 0)) {
+    return badRequest('Water rate must be a non-negative number');
+  }
+
+  const item = {
+    id: `billing_${instanceId}`,
+    waterRate: waterRate !== undefined ? waterRate : 50,
+    updatedAt: new Date().toISOString(),
+    updatedBy,
+  };
+
+  await docClient.send(new PutCommand({
+    TableName: process.env.SETTINGS_TABLE,
+    Item: item,
+  }));
+
+  return ok(item);
 }
