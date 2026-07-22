@@ -29,7 +29,7 @@ Globals:
         TWILIO_AUTH_TOKEN: '{{resolve:ssm:/tenantbilling/twilio/authtoken}}'
         TWILIO_WHATSAPP_FROM: '{{resolve:ssm:/tenantbilling/twilio/whatsappfrom}}'
         TWILIO_MESSAGING_SERVICE_SID: '{{resolve:ssm:/tenantbilling/twilio/messagingservicesid}}'
-        API_URL: !Sub 'https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+        API_URL: 'https://7zkpyvvrql.execute-api.eu-north-1.amazonaws.com'
 
 Parameters:
   CognitoDomain:
