@@ -106,27 +106,30 @@ async function sendOtp(event) {
   const phoneToUse = ADMIN_PHONE_MAP[inputEmail] || inputPhone;
   const deliveryEmail = ADMIN_OTP_EMAIL_MAP[inputEmail] || inputEmail;
 
-  if (!phoneToUse) {
-    return badRequest('Unable to resolve phone number for OTP delivery');
+  if (!phoneToUse && !deliveryEmail) {
+    return badRequest('Unable to resolve phone or email for OTP delivery');
   }
 
-  const { countryCode, localPhone } = decomposePhone(phoneToUse);
-
-  // Send WhatsApp OTP
-  const waRes = await postJson('https://www.chatworks.chat/api/auth/phone/start', {
-    countryCode,
-    localPhone,
-    email: deliveryEmail,
-    channel: 'whatsapp',
-    service: 'chatworks',
-  });
-
-  if (waRes.status !== 200) {
-    return badRequest(waRes.data?.error || 'Failed to send WhatsApp OTP');
-  }
-
-  // Send Email OTP (best effort)
+  let waData = {};
   let emailToken = null;
+
+  // Send WhatsApp OTP (if phone available)
+  if (phoneToUse) {
+    const { countryCode, localPhone } = decomposePhone(phoneToUse);
+    const waRes = await postJson('https://www.chatworks.chat/api/auth/phone/start', {
+      countryCode,
+      localPhone,
+      email: deliveryEmail,
+      channel: 'whatsapp',
+      service: 'chatworks',
+    });
+
+    if (waRes.status === 200) {
+      waData = waRes.data;
+    }
+  }
+
+  // Send Email OTP
   try {
     const emailRes = await postJson('https://www.chatworks.chat/api/auth/email/start', {
       email: deliveryEmail,
@@ -137,9 +140,14 @@ async function sendOtp(event) {
     }
   } catch (_) {}
 
+  if (!waData.token && !emailToken) {
+    return badRequest('Failed to send OTP via any channel');
+  }
+
   return ok({
-    ...waRes.data,
+    ...waData,
     emailToken,
+    maskedDestination: waData.maskedDestination || deliveryEmail,
   });
 }
 

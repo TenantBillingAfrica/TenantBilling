@@ -7,7 +7,15 @@ import MeterReaderDashboard from '../dashboards/MeterReaderDashboard';
 import TenantStatementDashboard from '../dashboards/TenantStatementDashboard';
 
 const DashboardPage = () => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-navy-800" />
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

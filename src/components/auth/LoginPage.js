@@ -24,13 +24,16 @@ const LoginPage = () => {
     setError('');
     setWhatsAppInfo('');
     setIsSubmitting(true);
-    const result = await login(email, password);
+    const normalizedEmail = email.trim().toLowerCase();
+    const result = await login(normalizedEmail, password);
     setIsSubmitting(false);
     if (result.success) {
       navigate('/dashboard');
-    } else if (result.challenge === 'NEW_PASSWORD_REQUIRED' || result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
+    } else if (result.challenge === 'NEW_PASSWORD_REQUIRED') {
+      // Password change required — show new password form (no OTP needed)
+    } else if (result.challenge === 'MFA_REQUIRED' || result.challenge === 'SMS_MFA' || result.challenge === 'TOTP_REQUIRED') {
       // Phone/email resolution handled server-side via whatsapp.service.js
-      triggerWhatsApp(result.destination || '', result.email || email);
+      triggerWhatsApp(result.destination || '', result.email || normalizedEmail);
     } else {
       setError(result.error);
     }

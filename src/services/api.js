@@ -22,6 +22,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('tb_id_token');
       localStorage.removeItem('tb_user');
+      localStorage.removeItem('tb_mfa_verified');
       window.location.href = '/login';
     }
     return Promise.reject(error);
