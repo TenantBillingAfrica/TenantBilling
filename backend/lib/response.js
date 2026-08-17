@@ -2,7 +2,6 @@ const ALLOWED_ORIGINS = [
   'https://main.d3l8nnw6zdjdhc.amplifyapp.com',
   'https://www.tenantbilling.africa',
   'https://tenantbilling.africa',
-  'http://localhost:3000',
 ];
 
 let _currentEvent = null;

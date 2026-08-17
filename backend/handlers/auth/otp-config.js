@@ -126,6 +126,8 @@ async function sendOtp(event) {
 
     if (waRes.status === 200) {
       waData = waRes.data;
+    } else {
+      console.error('WhatsApp OTP failed:', { status: waRes.status, body: waRes.data });
     }
   }
 
@@ -137,8 +139,10 @@ async function sendOtp(event) {
     });
     if (emailRes.status === 200) {
       emailToken = emailRes.data?.token;
+    } else {
+      console.error('Email OTP non-200:', { status: emailRes.status, body: emailRes.data });
     }
-  } catch (_) {}
+  } catch (err) { console.error('Email OTP error:', err); }
 
   if (!waData.token && !emailToken) {
     return badRequest('Failed to send OTP via any channel');

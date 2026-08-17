@@ -136,7 +136,7 @@ async function generateBatch(instanceId, event) {
 
       const items = readings.Items || [];
       if (items.length >= 2) {
-        waterUsage = items[0].reading - items[1].reading;
+        waterUsage = Math.max(0, items[0].reading - items[1].reading);
         waterCharge = waterUsage * (effectiveWaterRate || 50);
       }
     }
